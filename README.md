@@ -1,6 +1,6 @@
 # VendorMesh
 
-**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, ordered/partial/complete receipt tracking, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
+**VendorMesh is a procurement and inventory workspace with a separate experimental treasury/payment agent.** The workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, ordered/partial/complete receipt tracking, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, advisory pricing scenarios, and an owner/admin-only AI copilot with per-workspace credentials and usage limits. Legacy treasury/payment endpoints still use a separate operator-token API.
 
 ## Site
 
@@ -13,7 +13,8 @@ Replace the placeholder above with the Production Domain Vercel assigns after th
 ## What it does
 
 - **AI procurement agent:** uses Anthropic Claude, OpenAI, or Google Gemini with tool calling to compare supplier quotes and choose a purchase or hold.
-- **AI provider adapter:** Anthropic, OpenAI, and Gemini adapters are present behind the legacy operator-token API. Provider settings are global rather than tenant-scoped, and the older settings component is not connected to the current workspace dashboard.
+- **Workspace AI copilot:** owners/admins can configure a provider credential per workspace, test it, ask advisory procurement questions, and inspect usage metadata. A daily request limit applies; provider pricing/billing is still controlled by the provider.
+- **Legacy AI provider adapter:** the older Anthropic/OpenAI/Gemini endpoints remain protected by the shared operator token and use a separate global configuration.
 - **Encrypted provider keys:** saved AI keys are encrypted with AES-256-GCM before being written to MongoDB; keys are never returned to the frontend.
 - **Deterministic payment guardrails:** the model cannot invent a supplier quote, bypass the cash reserve, exceed the configured single-payment limit, or use a payout rail for an ineligible vendor.
 - **PayPal Orders v2:** stages an order that requires human approval before capture.
@@ -137,7 +138,7 @@ The included `render.yaml` is a Blueprint starting point. Review service names/U
 3. In Render, choose **New → Blueprint** and select the repository containing `render.yaml`.
 4. Set these secrets on the API service: `ADMIN_API_TOKEN`, `AI_SETTINGS_ENCRYPTION_KEY`, `PAYPAL_CLIENT_ID`, and `PAYPAL_CLIENT_SECRET`. Add `PAYPAL_VENDOR_PAYEE_EMAIL` if you intend to test Payouts.
 5. Verify the backend's `PUBLIC_API_URL` and `CLIENT_ORIGIN` match the actual service URLs. Verify frontend `VITE_API_URL` points to the API URL.
-6. Open the frontend, click **AI Settings**, enter `ADMIN_API_TOKEN`, connect, then save and test your provider key.
+6. In the current workspace dashboard, open **AI copilot**, configure a provider credential for that workspace, test it, save it, and ask an advisory procurement question. The legacy AI/treasury API remains separate and uses `X-Admin-Token`.
 7. Register the PayPal webhook against the deployed API URL, then add its generated ID as `PAYPAL_WEBHOOK_ID` on the API service and redeploy/restart.
 8. Test `/api/health`, read-only dashboard loading, AI connection testing, a Sandbox order approval, and webhook status reconciliation before recording a demo.
 
@@ -201,7 +202,7 @@ npm run build
 - Do not commit `.env`, real API keys, PayPal secrets, or production database credentials.
 - Keep `ADMIN_API_TOKEN` and `AI_SETTINGS_ENCRYPTION_KEY` separate and private. Rotating the encryption key without re-encrypting stored settings makes old saved keys unreadable.
 - Use HTTPS in hosted environments. The provider API key is sent to your backend, not stored in browser storage.
-- The workspace UI uses bearer sessions, but the legacy operator-token API remains a separate shared-admin surface; AI settings are not tenant-scoped yet. A production financial deployment still needs a focused security review, operational rate-limit storage for multiple instances, payment approval review, monitoring, and validated recovery procedures.
+- The workspace AI copilot uses per-company encrypted credentials and a MongoDB-backed per-company daily request counter; its usage log stores metadata/token counts but not prompts or answers. The legacy `/api/ai/*` routes still use a separate global configuration protected by `ADMIN_API_TOKEN`. Authentication throttling is in-memory per process, so use shared infrastructure before scaling. A production financial deployment still needs a focused security review, payment approval review, monitoring, and validated recovery procedures.
 - Real payment execution is irreversible in some cases. Keep the system in Sandbox until guardrails, approvals, webhook handling and business policy have been independently reviewed.
 
 ## Team
@@ -231,3 +232,5 @@ MIT. See [LICENSE](LICENSE).
 - [Postman collection](postman/VendorMesh.postman_collection.json) — includes the existing legacy operator routes and a workspace Bearer-session folder. Use synthetic test data and a unique test email.
 
 The OpenAPI file documents the current unversioned workspace API; public API keys, universal pagination/filtering, and separately versioned /api/v1 routes are not implemented yet.
+
+- AI quota configuration: `AI_MAX_REQUESTS_PER_DAY` defaults to 25 provider tests/advisory questions per workspace UTC day; accepted values are 1–500. This limits app requests, not the provider's price or billing plan. Token counts are displayed only when the provider returns usage metadata.

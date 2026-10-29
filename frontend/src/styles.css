@@ -23,3 +23,44 @@ tbody tr:hover td{background:#f8faff}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 .status-partially_received{background:var(--amber-bg);color:var(--amber)}.status-received{background:var(--green-bg);color:var(--green)}.fulfillment-actions{display:grid;gap:6px;min-width:145px}.fulfillment-actions label{display:grid;gap:4px;color:var(--muted);font-size:9px}.fulfillment-actions input{width:100%;min-width:72px;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;color:var(--ink)}.fulfillment-actions button{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;color:#33435c;font-size:10px;font-weight:700}.fulfillment-actions button:disabled{opacity:.45;cursor:not-allowed}
+
+
+/* Workspace AI copilot */
+.workspace-ai{display:grid;gap:16px}
+.ai-security-note{padding:15px 17px;border:1px solid #dce6f6;border-radius:12px;background:#f8fbff;color:#33435e}
+.ai-security-note strong{display:block;font:800 12px 'Bricolage Grotesque';margin-bottom:4px}
+.ai-security-note p{margin:0;line-height:1.7;font-size:11px;color:#63718a}
+.ai-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:16px;align-items:start}
+.ai-config-card,.ai-usage-card,.ai-question-card{margin:0;min-width:0}
+.ai-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.ai-section-heading h3,.ai-table-title h3{margin:0 0 4px}
+.ai-section-heading p,.ai-table-title p{margin:0;font-size:11px;line-height:1.6}
+.ai-config-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ai-config-fields label:last-child{grid-column:1/-1}
+.ai-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ai-actions .secondary,.ai-actions .primary{min-width:105px}
+.ai-actions .danger-button{color:var(--red);border-color:#f1d6d4}
+.ai-usage-card .ai-section-heading{align-items:center}
+.ai-quota{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.ai-quota span,.ai-quota strong{display:block}
+.ai-quota span{font-size:10px;color:var(--muted)}
+.ai-quota strong{font:800 27px 'Bricolage Grotesque';margin-top:4px}
+.ai-quota>b{font-size:11px;color:var(--green);padding-bottom:5px}
+.ai-quota-track{height:8px;background:#edf1f8;border-radius:99px;overflow:hidden;margin:15px 0 12px}
+.ai-quota-track span{display:block;height:100%;border-radius:inherit;background:var(--blue);transition:width .2s ease}
+.ai-usage-footnote{font-size:10px;line-height:1.7;margin:0}
+.ai-question-card{margin:0}
+.ai-question-label{display:grid;gap:7px;color:#35435c;font-size:12px;font-weight:700}
+.ai-question-label textarea{resize:vertical;width:100%;border:1px solid #dce3ef;border-radius:9px;background:#fff;padding:12px;color:var(--ink);font:500 13px/1.7 'Public Sans',sans-serif}
+.ai-question-label textarea:focus-visible{outline:3px solid #8eafff;outline-offset:2px}
+.ai-question-label textarea:disabled{background:#f7f8fb;color:#8591a6}
+.ai-character-count{font-size:10px;margin-right:auto}
+.ai-answer{margin-top:20px;border:1px solid #dbe5f5;border-radius:10px;padding:17px;background:#fbfcff}
+.ai-answer-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:12px}
+.ai-answer-title span{color:var(--green);background:var(--green-bg);font-size:9px;font-weight:800;padding:5px 8px;border-radius:6px;text-transform:uppercase}
+.ai-answer p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.8;color:#33435d;margin:0}
+.ai-table-title{padding:17px 18px 0}
+.ai-no-usage{padding:8px 18px 20px;font-size:11px}
+.ai-role-note{font-size:10px;line-height:1.6;margin:0}
+@media(max-width:950px){.ai-layout{grid-template-columns:1fr}}
+@media(max-width:560px){.ai-config-fields{grid-template-columns:1fr}.ai-config-fields label:last-child{grid-column:auto}.ai-actions{justify-content:stretch}.ai-actions button{flex:1}.ai-actions .ai-character-count{flex-basis:100%}.ai-security-note{padding:13px}.ai-quota strong{font-size:23px}}
