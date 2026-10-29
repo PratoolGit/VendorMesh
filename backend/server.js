@@ -21,6 +21,8 @@ import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
 import { createWorkspaceAIRouter } from './routes/workspaceAI.js';
 import { createWorkspaceAPIKeysRouter } from './routes/workspaceAPIKeys.js';
 import { createPublicAPIRouter } from './routes/publicAPI.js';
+import { createWorkspaceInvoicesRouter } from './routes/workspaceInvoices.js';
+import { createWorkspaceReconciliationRouter } from './routes/workspaceReconciliation.js';
 import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { validatePurchaseTransition } from './services/purchaseWorkflow.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
@@ -212,6 +214,8 @@ app.use('/api/workspace/pricing-simulator', createPricingSimulatorRouter({ requi
 app.use('/api/workspace/ai', createWorkspaceAIRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/api-keys', createWorkspaceAPIKeysRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/v1', createPublicAPIRouter());
+app.use('/api/workspace/invoices', createWorkspaceInvoicesRouter({ requireSession, requireWorkspaceRole }));
+app.use('/api/workspace/reconciliation', createWorkspaceReconciliationRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
   const scope = workspace(req);
