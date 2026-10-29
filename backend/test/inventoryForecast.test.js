@@ -29,5 +29,18 @@ test('inventory forecast handles extreme and invalid values conservatively', () 
     { _id: 'item1', name: 'Overflow', onHand: Number.MAX_VALUE, reorderPoint: 0, dailyDemand: Number.MAX_VALUE }
   ], []);
   assert.ok(['high', 'medium', 'normal', 'insufficient_data'].includes(result[0].stockoutRisk));
-  assert.ok(result[0].daysOfCover === null || Number.isFinite(result[0].daysOfCover));
+  assert.equal(result[0].stockoutRisk, 'insufficient_data');
+  assert.equal(result[0].targetStock, null);
+  assert.equal(result[0].suggestedReorderQuantity, null);
+  assert.equal(result[0].daysOfCover, null);
+});
+
+
+test('inventory forecast rejects projections that exceed safe integer bounds', () => {
+  const result = forecastInventory([
+    { _id: 'item1', name: 'Huge Demand', onHand: 10, reorderPoint: 2, dailyDemand: Number.MAX_SAFE_INTEGER }
+  ], []);
+  assert.equal(result[0].stockoutRisk, 'insufficient_data');
+  assert.equal(result[0].next30DaysDemand, null);
+  assert.equal(result[0].suggestedReorderQuantity, null);
 });

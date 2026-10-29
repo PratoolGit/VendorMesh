@@ -11,19 +11,25 @@ export function forecastInventory(items, suppliers, { safetyBufferDays = 3 } = {
     const onHand = Number(item.onHand);
     const reorderPoint = Number(item.reorderPoint);
     const supplier = item.supplierId ? supplierById.get(String(item.supplierId)) || null : null;
-    const validDemand = Number.isFinite(dailyDemand) && dailyDemand > 0;
-    const validStock = Number.isFinite(onHand) && onHand >= 0;
-    const validReorderPoint = Number.isFinite(reorderPoint) && reorderPoint >= 0;
+    const validDemand = Number.isFinite(dailyDemand) && dailyDemand > 0
+      && Number.isSafeInteger(Math.ceil(dailyDemand * 30));
+    const validStock = Number.isFinite(onHand) && onHand >= 0 && onHand <= Number.MAX_SAFE_INTEGER;
+    const validReorderPoint = Number.isFinite(reorderPoint) && reorderPoint >= 0 && reorderPoint <= Number.MAX_SAFE_INTEGER;
     const leadTimeDays = supplier && Number.isFinite(Number(supplier.leadTimeDays))
       ? Number(supplier.leadTimeDays)
       : null;
-    const daysOfCover = validDemand && validStock ? onHand / dailyDemand : null;
+    const rawDaysOfCover = validDemand && validStock ? onHand / dailyDemand : null;
+    const daysOfCover = rawDaysOfCover !== null && Number.isFinite(rawDaysOfCover)
+      && Number.isFinite(rawDaysOfCover * 10)
+      ? Math.round(rawDaysOfCover * 10) / 10
+      : null;
     const targetDays = (leadTimeDays ?? 7) + safetyBufferDays;
-    const targetStock = validDemand ? Math.ceil(dailyDemand * targetDays) : null;
-    const suggestedReorderQuantity = validDemand && validStock
+    const targetStockIsSafe = validDemand && Number.isSafeInteger(Math.ceil(dailyDemand * targetDays));
+    const targetStock = targetStockIsSafe ? Math.ceil(dailyDemand * targetDays) : null;
+    const suggestedReorderQuantity = targetStockIsSafe && validStock
       ? Math.max(0, targetStock - onHand)
       : null;
-    const stockoutRisk = !validDemand || !validStock
+    const stockoutRisk = !validDemand || !validStock || !targetStockIsSafe
       ? 'insufficient_data'
       : daysOfCover <= (leadTimeDays ?? 7)
         ? 'high'
@@ -40,7 +46,7 @@ export function forecastInventory(items, suppliers, { safetyBufferDays = 3 } = {
       dailyDemand: validDemand ? dailyDemand : null,
       next7DaysDemand: validDemand ? Math.ceil(dailyDemand * 7) : null,
       next30DaysDemand: validDemand ? Math.ceil(dailyDemand * 30) : null,
-      daysOfCover: daysOfCover === null ? null : Math.round(daysOfCover * 10) / 10,
+      daysOfCover,
       supplier: supplier ? {
         id: String(supplier._id),
         name: supplier.name,
@@ -50,9 +56,11 @@ export function forecastInventory(items, suppliers, { safetyBufferDays = 3 } = {
       suggestedReorderQuantity,
       stockoutRisk,
       explanation: !validDemand
-        ? 'Daily demand is missing or zero. Add a reasonable daily demand estimate before using this baseline.'
+        ? 'Daily demand is missing, zero, or too large for a safe projection. Add a reasonable daily demand estimate.'
         : !validStock
-          ? 'On-hand quantity is invalid; review the inventory record.'
+          ? 'On-hand quantity is invalid or outside the safe calculation range; review the inventory record.'
+          : !targetStockIsSafe
+            ? 'Demand and supplier lead time exceed safe calculation bounds; review these values.'
           : stockoutRisk === 'high'
             ? 'Estimated stock cover is no longer than the supplier lead time (or the 7-day fallback when no active linked supplier is available).'
             : stockoutRisk === 'medium'

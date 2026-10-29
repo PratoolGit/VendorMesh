@@ -88,11 +88,12 @@ export default function App() {
   }, [refresh]);
 
   async function authenticated(result) {
+    setSummary(null); setInventory([]); setSuppliers([]); setRequests([]); setRecommendations([]); setTeam([]); setAuditEntries([]); setPricingResult(null); setForecastResult(null); setTab('overview');
     setSession({ user: result.user, company: result.company });
     setError(''); setNotice('Workspace ready. Add your inventory and suppliers to get started.');
     try { await refresh(); } catch (e) { setError(e.message); }
   }
-  function signOut() { sessionStorage.removeItem(tokenKey); setSession(null); setSummary(null); setInventory([]); setSuppliers([]); setRequests([]); setRecommendations([]); setTeam([]); }
+  function signOut() { sessionStorage.removeItem(tokenKey); setSession(null); setSummary(null); setInventory([]); setSuppliers([]); setRequests([]); setRecommendations([]); setTeam([]); setAuditEntries([]); setPricingResult(null); setForecastResult(null); setTab('overview'); }
   async function act(fn, success) {
     setBusy(true); setError(''); setNotice('');
     try { await fn(); await refresh(); if (success) setNotice(success); }
@@ -136,7 +137,7 @@ export default function App() {
   async function updateMember(id, patch) {
     await act(async () => { await api(`/api/workspace/team/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }); await loadTeam(); }, 'Team permissions updated.');
   }
-  useEffect(() => { if (tab === 'forecast') loadForecast(); }, [tab]);
+  useEffect(() => { if (tab === 'forecast' && session) loadForecast(); }, [tab, session?.company?.id]);
   useEffect(() => { if (tab === 'team' && ['owner', 'admin'].includes(session?.company?.role)) loadTeam(); }, [tab, session?.company?.role]);
   useEffect(() => { if (tab === 'audit' && ['owner', 'admin'].includes(session?.company?.role)) loadAuditLog(); }, [tab, session?.company?.role]);
   if (loading) return <div className="loading">Loading your workspace…</div>;
