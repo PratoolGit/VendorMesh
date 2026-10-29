@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "VendorMesh API",
-    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection.",
+    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection. Workspace routes use workspaceToken (Bearer token) from registration/login. Set baseUrl and never store credentials in a shared collection.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -27,6 +27,30 @@
     },
     {
       "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "workspaceToken",
+      "value": ""
+    },
+    {
+      "key": "testEmail",
+      "value": ""
+    },
+    {
+      "key": "testPassword",
+      "value": ""
+    },
+    {
+      "key": "inventoryItemId",
+      "value": ""
+    },
+    {
+      "key": "supplierId",
+      "value": ""
+    },
+    {
+      "key": "purchaseRequestId",
       "value": ""
     }
   ],
@@ -149,6 +173,331 @@
           }
         }
       }
+    },
+    {
+      "name": "Workspace API (Bearer session)",
+      "description": "Use a unique testEmail and a strong testPassword. Registration/login stores token as workspaceToken.",
+      "item": [
+        {
+          "name": "Register workspace",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA User\",\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"companyName\": \"VendorMesh QA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) pm.collectionVariables.set('workspaceToken', data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) pm.collectionVariables.set('workspaceToken', data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Workspace summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/summary"
+          }
+        },
+        {
+          "name": "List inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/inventory"
+          }
+        },
+        {
+          "name": "Create inventory item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/inventory",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"QA-SKU-001\",\n  \"name\": \"QA inventory item\",\n  \"onHand\": 25,\n  \"reorderPoint\": 5,\n  \"unitCost\": 10,\n  \"dailyDemand\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List suppliers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/suppliers"
+          }
+        },
+        {
+          "name": "Create supplier (owner/admin controls)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/suppliers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA Supplier\",\n  \"email\": \"qa-supplier@example.com\",\n  \"leadTimeDays\": 5,\n  \"reliabilityScore\": 90,\n  \"paymentTerms\": \"Net 30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List purchase requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/purchase-requests"
+          }
+        },
+        {
+          "name": "Create purchase request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/purchase-requests",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inventoryItemId\": \"{{inventoryItemId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"quantity\": 5,\n  \"unitCost\": 10,\n  \"rationale\": \"Postman smoke test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Review purchase request (owner/admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/purchase-requests/{{purchaseRequestId}}/review",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"note\": \"Test only\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/recommendations"
+          }
+        },
+        {
+          "name": "Inventory forecast",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/forecast"
+          }
+        },
+        {
+          "name": "Procurement review queue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/anomalies"
+          }
+        },
+        {
+          "name": "Audit log (owner/admin only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/audit-log?limit=20"
+          }
+        },
+        {
+          "name": "Pricing simulator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/pricing-simulator",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"basePrice\": 100,\n  \"unitCost\": 60,\n  \"baselineUnits\": 100,\n  \"elasticity\": 1.2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }

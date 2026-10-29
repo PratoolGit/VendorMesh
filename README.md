@@ -224,3 +224,10 @@ MIT. See [LICENSE](LICENSE).
 - Keep multi-instance rate limits in a shared store or enforce them at a trusted edge before scaling the API.
 
 - The review queue checks recent workspace purchase requests for possible duplicates, totals that do not reconcile, inactive/missing references, incomplete review metadata, and amounts over the configured limit. These are rule-based review signals, not fraud findings.
+
+## API documentation
+
+- [Workspace API OpenAPI specification](docs/openapi.yaml)
+- [Postman collection](postman/VendorMesh.postman_collection.json) — includes the existing legacy operator routes and a workspace Bearer-session folder. Use synthetic test data and a unique test email.
+
+The OpenAPI file documents the current unversioned workspace API; public API keys, universal pagination/filtering, and separately versioned /api/v1 routes are not implemented yet.

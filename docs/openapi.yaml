@@ -1,0 +1,461 @@
+openapi: 3.1.0
+info:
+  title: VendorMesh Workspace API
+  version: 0.1.0
+  description: |
+    Documents the current unversioned, bearer-session workspace API. Workspace identifiers are
+    derived from the authenticated session, not request bodies. This is not yet a third-party
+    API-key product. Legacy operator-token AI/treasury/payment routes are intentionally omitted.
+servers:
+  - url: http://localhost:5000
+    description: Local backend
+security:
+  - BearerSession: []
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Workspace
+  - name: Inventory
+  - name: Suppliers
+  - name: Purchasing
+  - name: Intelligence
+  - name: Audit
+paths:
+  /health/live:
+    get:
+      security: []
+      tags: [Health]
+      summary: Process liveness
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { const: ok } } }
+  /health/ready:
+    get:
+      security: []
+      tags: [Health]
+      summary: Database readiness
+      responses:
+        '200': { description: Database is available }
+        '503': { description: Database is not ready }
+  /api/auth/register:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Create a user and workspace
+      description: Registration and login are limited to 20 requests per client IP per 15 minutes per backend process.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, companyName]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 120 }
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 10, maxLength: 200 }
+                companyName: { type: string, minLength: 2, maxLength: 120 }
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSession' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/login:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Current identity and workspace
+      responses:
+        '200':
+          description: Signed-in user and active workspace
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  company: { $ref: '#/components/schemas/Workspace' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/summary:
+    get:
+      tags: [Workspace]
+      summary: Workspace metrics and recent requests
+      responses:
+        '200':
+          description: Workspace-scoped summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inventoryCount: { type: integer }
+                  supplierCount: { type: integer }
+                  pendingApprovals: { type: integer }
+                  totalUnits: { type: number }
+                  lowStock: { type: integer }
+                  inventoryValue: { type: number }
+                  recentRequests: { type: array, items: { $ref: '#/components/schemas/PurchaseRequest' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/workspace/inventory:
+    get:
+      tags: [Inventory]
+      summary: List up to 1000 inventory items
+      responses:
+        '200':
+          description: Inventory items
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/InventoryItem' } }
+    post:
+      tags: [Inventory]
+      summary: Create inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, onHand, reorderPoint, unitCost]
+              properties:
+                sku: { type: string, maxLength: 80 }
+                name: { type: string, maxLength: 180 }
+                onHand: { type: number, minimum: 0 }
+                reorderPoint: { type: number, minimum: 0 }
+                unitCost: { type: number, minimum: 0 }
+                dailyDemand: { type: number, minimum: 0 }
+      responses:
+        '201':
+          description: Inventory item created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/inventory/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    patch:
+      tags: [Inventory]
+      summary: Update inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                sku: { type: string, maxLength: 80 }
+                name: { type: string, maxLength: 180 }
+                onHand: { type: number, minimum: 0 }
+                reorderPoint: { type: number, minimum: 0 }
+                unitCost: { type: number, minimum: 0 }
+                dailyDemand: { type: number, minimum: 0 }
+      responses:
+        '200': { description: Inventory item updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Inventory]
+      summary: Delete inventory item (owner/admin only)
+      responses:
+        '204': { description: Inventory item deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/workspace/suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List up to 1000 suppliers in the active workspace
+      responses:
+        '200': { description: Supplier array }
+    post:
+      tags: [Suppliers]
+      summary: Create supplier contact
+      description: Staff can provide name/email. Owner/admin can also set lead time, reliability, and payment terms.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 180 }
+                email: { type: string, format: email, maxLength: 254 }
+                leadTimeDays: { type: number, minimum: 0, maximum: 3650 }
+                reliabilityScore: { type: number, minimum: 0, maximum: 100 }
+                paymentTerms: { type: string, maxLength: 120 }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        '201': { description: Supplier created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/suppliers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    patch:
+      tags: [Suppliers]
+      summary: Update supplier
+      description: Staff cannot change lead time, reliability, activation state, or payment terms.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, maxLength: 180 }
+                email: { type: string, format: email, maxLength: 254 }
+                leadTimeDays: { type: number, minimum: 0, maximum: 3650 }
+                reliabilityScore: { type: number, minimum: 0, maximum: 100 }
+                active: { type: boolean }
+                paymentTerms: { type: string, maxLength: 120 }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        '200': { description: Supplier updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/workspace/purchase-requests:
+    get:
+      tags: [Purchasing]
+      summary: List up to 500 purchase requests, newest first
+      responses:
+        '200': { description: Purchase request array }
+    post:
+      tags: [Purchasing]
+      summary: Submit purchase request for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inventoryItemId, supplierId, quantity]
+              properties:
+                inventoryItemId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+                supplierId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+                quantity: { type: integer, minimum: 1, maximum: 1000000 }
+                unitCost: { type: number, minimum: 0 }
+                rationale: { type: string, maxLength: 2000 }
+      responses:
+        '201': { description: Pending request created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/workspace/purchase-requests/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Approve or reject a pending request (owner/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Updated purchase request }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/recommendations:
+    get:
+      tags: [Intelligence]
+      summary: Explainable supplier/replenishment suggestions; no orders placed
+      responses:
+        '200': { description: Recommendations with weighted supplier ranking explanations }
+  /api/workspace/forecast:
+    get:
+      tags: [Intelligence]
+      summary: Inventory coverage baseline
+      description: Uses configured daily demand. Does not use historical sales or claim ML accuracy.
+      responses:
+        '200': { description: Forecast estimates with explicit limitations }
+  /api/workspace/anomalies:
+    get:
+      tags: [Intelligence]
+      summary: Read-only procurement review signals
+      description: Signals are not fraud findings and never change purchasing or payment state.
+      responses:
+        '200': { description: Review queue covering the latest 500 purchase requests }
+  /api/workspace/audit-log:
+    get:
+      tags: [Audit]
+      summary: List workspace audit events (owner/admin only)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: before
+          description: ISO 8601 timestamp; return earlier events.
+          schema: { type: string, format: date-time }
+      responses:
+        '200': { description: Audit page with entries and nextBefore timestamp }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/pricing-simulator:
+    post:
+      tags: [Intelligence]
+      summary: Estimate price scenarios; never writes actual prices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [basePrice, unitCost, baselineUnits]
+              properties:
+                basePrice: { type: number, exclusiveMinimum: 0 }
+                unitCost: { type: number, minimum: 0 }
+                baselineUnits: { type: integer, minimum: 0, maximum: 9007199254740991 }
+                elasticity: { type: number, minimum: 0, maximum: 5, default: 1.2 }
+                competitorPrice: { type: [number, 'null'], exclusiveMinimum: 0 }
+      responses:
+        '200': { description: Advisory scenarios and assumptions }
+        '400': { $ref: '#/components/responses/BadRequest' }
+components:
+  securitySchemes:
+    BearerSession:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC-signed VendorMesh session
+  parameters:
+    ObjectId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+  responses:
+    BadRequest:
+      description: Input validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing, invalid, or expired session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Workspace membership or role denies the action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Record not found in the active workspace
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Requested state conflicts with existing record
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Too many registration/login requests
+      headers:
+        Retry-After:
+          schema: { type: integer }
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
