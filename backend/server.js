@@ -299,19 +299,19 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, db: mongoose.connection.readyState === 1, time: new Date().toISOString() });
 });
 
-app.get('/api/transactions', wrap(async (_req, res) => {
+app.get('/api/transactions', requireAdmin, wrap(async (_req, res) => {
   // Trace and webhook arrays are heavy; the grid only needs the summary fields.
   res.json(await Transaction.find().sort({ timestamp: -1 }).limit(200).select('-agent_trace -webhook_events').lean());
 }));
 
-app.get('/api/transactions/:id', wrap(async (req, res) => {
+app.get('/api/transactions/:id', requireAdmin, wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
   const tx = await Transaction.findById(req.params.id).lean();
   return tx ? res.json(tx) : res.status(404).json({ error: 'Not found' });
 }));
 
-app.get('/api/treasury', wrap(async (_req, res) => res.json(await getTreasury())));
-app.get('/api/inventory', (_req, res) => res.json(getInventory()));
+app.get('/api/treasury', requireAdmin, wrap(async (_req, res) => res.json(await getTreasury())));
+app.get('/api/inventory', requireAdmin, (_req, res) => res.json(getInventory()));
 
 /* ----------------------------- AI configuration ----------------------------- */
 
@@ -459,6 +459,7 @@ app.use((err, _req, res, _next) => {
 async function main() {
   if (process.env.NODE_ENV === 'production' && (!process.env.ADMIN_API_TOKEN || process.env.ADMIN_API_TOKEN.length < 24)) throw new Error('ADMIN_API_TOKEN must be set to at least 24 characters in production');
   if (process.env.NODE_ENV === 'production' && (!process.env.AI_SETTINGS_ENCRYPTION_KEY || process.env.AI_SETTINGS_ENCRYPTION_KEY.length < 24)) throw new Error('AI_SETTINGS_ENCRYPTION_KEY must be set to at least 24 characters in production');
+  if (process.env.NODE_ENV === 'production' && (!process.env.AUTH_TOKEN_SECRET || process.env.AUTH_TOKEN_SECRET.length < 32)) throw new Error('AUTH_TOKEN_SECRET must be set to at least 32 characters in production');
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not set');
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10_000 });
   console.log('[db] connected to MongoDB');
