@@ -82,7 +82,8 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   const password = req.body?.password;
   const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : '';
   if (name.length < 2 || name.length > 120) return res.status(400).json({ error: 'Enter your name (2–120 characters).' });
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) return res.status(400).json({ error: 'Enter a valid email address.' });
+  const emailParts = email.split('@');
+  if (email.length > 254 || email.includes(' ') || emailParts.length !== 2 || !emailParts[0] || !emailParts[1]?.includes('.') || emailParts[1].startsWith('.') || emailParts[1].endsWith('.')) return res.status(400).json({ error: 'Enter a valid email address.' });
   if (companyName.length < 2 || companyName.length > 120) return res.status(400).json({ error: 'Company name must be 2–120 characters.' });
   const passwordHash = await hashPassword(password);
   let user;
