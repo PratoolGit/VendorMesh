@@ -5,6 +5,9 @@ import InventoryItem from '../models/InventoryItem.js';
 import Supplier from '../models/Supplier.js';
 import { forecastInventory } from '../services/inventoryForecast.js';
 import { rankSuppliers } from '../services/supplierMatching.js';
+import Company from '../models/Company.js';
+import PurchaseRequest from '../models/PurchaseRequest.js';
+import { detectWorkspaceAnomalies } from '../services/workspaceAnomalies.js';
 
 export function createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }) {
   const router = express.Router();
@@ -52,6 +55,25 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
         .sort((a, b) => ({ high: 0, medium: 1 }[a.priority] - { high: 0, medium: 1 }[b.priority] || (b.suggestedQuantity - a.suggestedQuantity)));
       res.json({ generatedAt: new Date().toISOString(), method: 'rules-based', autoOrdersCreated: 0, recommendations });
     } catch (error) { next(error); }
+  });
+
+  router.get('/anomalies', requireSession, async (req, res, next) => {
+    try {
+      const scope = companyScope(req);
+      const [requests, items, suppliers, company] = await Promise.all([
+        PurchaseRequest.find(scope).sort({ createdAt: -1 }).limit(500).lean(),
+        InventoryItem.find(scope).select('_id name sku').limit(1000).lean(),
+        Supplier.find(scope).select('_id name active').limit(1000).lean(),
+        Company.findById(req.session.companyId).select('settings').lean()
+      ]);
+      const configuredLimit = Number(company?.settings?.maxSinglePayment ?? process.env.MAX_SINGLE_PAYMENT ?? 15_000);
+      return res.json(detectWorkspaceAnomalies({
+        purchaseRequests: requests,
+        inventoryItems: items,
+        suppliers,
+        maxSinglePayment: Number.isFinite(configuredLimit) ? configuredLimit : 15_000
+      }));
+    } catch (error) { return next(error); }
   });
 
   router.get('/forecast', requireSession, async (req, res, next) => {

@@ -1,6 +1,6 @@
 # VendorMesh
 
-**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, transparent daily-demand inventory forecasts, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
+**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
 
 ## Site
 
@@ -222,3 +222,5 @@ MIT. See [LICENSE](LICENSE).
 - The audit log's application-level guards are not a substitute for database-level insert-only credentials, retention controls, or an external tamper-resistant archive.
 - Authentication throttling currently uses in-memory per-process buckets. If the API is scaled to multiple instances, use a shared rate-limit store or edge protection.
 - Keep multi-instance rate limits in a shared store or enforce them at a trusted edge before scaling the API.
+
+- The review queue checks recent workspace purchase requests for possible duplicates, totals that do not reconcile, inactive/missing references, incomplete review metadata, and amounts over the configured limit. These are rule-based review signals, not fraud findings.
