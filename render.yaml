@@ -20,6 +20,8 @@ services:
         sync: false
       - key: ADMIN_API_TOKEN
         sync: false
+      - key: AUTH_TOKEN_SECRET
+        sync: false
       - key: AI_SETTINGS_ENCRYPTION_KEY
         sync: false
       - key: ANTHROPIC_MODEL
