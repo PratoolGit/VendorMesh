@@ -72,6 +72,14 @@
     {
       "key": "workspaceAPIKeyId",
       "value": ""
+    },
+    {
+      "key": "invoiceId",
+      "value": ""
+    },
+    {
+      "key": "invoiceNumber",
+      "value": "VM-POSTMAN-{{$timestamp}}"
     }
   ],
   "item": [
@@ -333,7 +341,21 @@
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data._id) pm.collectionVariables.set('inventoryItemId', data._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "List suppliers",
@@ -372,7 +394,21 @@
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data._id) pm.collectionVariables.set('supplierId', data._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "List purchase requests",
@@ -411,7 +447,21 @@
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data._id) pm.collectionVariables.set('purchaseRequestId', data._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Review purchase request (owner/admin)",
@@ -705,6 +755,98 @@
               }
             ],
             "url": "{{baseUrl}}/api/workspace/api-keys/{{workspaceAPIKeyId}}"
+          }
+        },
+        {
+          "name": "Record invoice for review (manual entry)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/invoices",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purchaseRequestId\": \"{{purchaseRequestId}}\",\n  \"invoiceNumber\": \"{{invoiceNumber}}\",\n  \"invoiceDate\": \"2026-10-29\",\n  \"dueDate\": \"2026-11-28\",\n  \"currency\": \"USD\",\n  \"subtotal\": 50,\n  \"taxTotal\": 0,\n  \"total\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data._id) pm.collectionVariables.set('invoiceId', data._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/invoices?limit=50"
+          }
+        },
+        {
+          "name": "Review invoice (owner/admin; no payment initiated)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/invoices/{{invoiceId}}/review",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"note\": \"Invoice checked against the test purchase request.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invoice reconciliation (owner/admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/reconciliation"
           }
         }
       ]

@@ -482,6 +482,112 @@ paths:
         '409': { description: No provider credential has been configured for this workspace }
         '429': { $ref: '#/components/responses/RateLimited' }
         '502': { description: Provider request failed; no raw provider response is returned }
+  /api/workspace/invoices:
+    get:
+      tags: [Purchasing]
+      summary: List invoice records for the active workspace
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending_review, approved, rejected] }
+      responses:
+        '200':
+          description: Tenant-scoped invoice page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Invoice' } }
+                  limit: { type: integer }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Purchasing]
+      summary: Manually record an invoice against an approved or fulfilled purchase request
+      description: |
+        Invoice values are entered manually in this release. File uploads/OCR are not enabled.
+        Creation queues the invoice for review and does not initiate any payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purchaseRequestId, invoiceNumber, invoiceDate, currency, subtotal, taxTotal, total]
+              properties:
+                purchaseRequestId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+                invoiceNumber: { type: string, minLength: 2, maxLength: 100 }
+                invoiceDate: { type: string, format: date }
+                dueDate: { type: [string, 'null'], format: date }
+                currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+                subtotal: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+                taxTotal: { type: number, minimum: 0, maximum: 100000000 }
+                total: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+      responses:
+        '201':
+          description: Invoice stored in pending_review status; no payment initiated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/invoices/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Approve or reject a pending invoice (owner/admin only)
+      description: Approval of an amount or currency mismatch requires a review note; rejection requires a reason. Does not initiate payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Invoice reviewed; no payment initiated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/reconciliation:
+    get:
+      tags: [Purchasing]
+      summary: Run read-only invoice-to-purchase-request reconciliation (owner/admin)
+      description: |
+        Checks the recent workspace invoice register and purchase requests for missing invoices,
+        possible duplicate supplier invoice numbers, invoice totals above purchase totals, currency
+        mismatches and pending review. Does not perform payment/settlement reconciliation.
+      responses:
+        '200':
+          description: Deterministic review signals with window limits and explanatory evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  method: { type: string }
+                  isReadOnly: { const: true }
+                  warning: { type: string }
+                  counts: { type: object }
+                  signals: { type: array, items: { type: object, additionalProperties: true } }
+                  window: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/workspace/pricing-simulator:
     post:
       tags: [Intelligence]
@@ -690,6 +796,30 @@ components:
         Retry-After:
           schema: { type: integer }
   schemas:
+    Invoice:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     WorkspaceAPIKey:
       type: object
       properties:
