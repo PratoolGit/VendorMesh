@@ -334,7 +334,7 @@
             "url": "{{baseUrl}}/api/workspace/inventory",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sku\": \"QA-SKU-001\",\n  \"name\": \"QA inventory item\",\n  \"onHand\": 25,\n  \"reorderPoint\": 5,\n  \"unitCost\": 10,\n  \"dailyDemand\": 2\n}",
+              "raw": "{\n  \"sku\": \"QA-{{$timestamp}}\",\n  \"name\": \"QA inventory item\",\n  \"onHand\": 25,\n  \"reorderPoint\": 5,\n  \"unitCost\": 10,\n  \"dailyDemand\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -387,7 +387,7 @@
             "url": "{{baseUrl}}/api/workspace/suppliers",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"QA Supplier\",\n  \"email\": \"qa-supplier@example.com\",\n  \"leadTimeDays\": 5,\n  \"reliabilityScore\": 90,\n  \"paymentTerms\": \"Net 30\"\n}",
+              "raw": "{\n  \"name\": \"QA Supplier {{$timestamp}}\",\n  \"email\": \"qa-supplier@example.com\",\n  \"leadTimeDays\": 5,\n  \"reliabilityScore\": 90,\n  \"paymentTerms\": \"Net 30\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -783,6 +783,15 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('invoiceNumber', 'VM-POSTMAN-' + Date.now());"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
