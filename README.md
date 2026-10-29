@@ -1,13 +1,13 @@
 # VendorMesh
 
-**An AI-assisted procurement and liquidity control demo built around PayPal.** VendorMesh watches inventory signals, compares supplier quotes, applies deterministic cash guardrails, and stages or sends PayPal payments while recording an explainable transaction ledger.
+**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
 
 > **Hackathon/demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
 
 ## What it does
 
 - **AI procurement agent:** uses Anthropic Claude, OpenAI, or Google Gemini with tool calling to compare supplier quotes and choose a purchase or hold.
-- **Provider settings UI:** change provider/model, test a key, and save settings from the dashboard.
+- **AI provider adapter:** Anthropic, OpenAI, and Gemini adapters are present behind the legacy operator-token API. Provider settings are global rather than tenant-scoped, and the older settings component is not connected to the current workspace dashboard.
 - **Encrypted provider keys:** saved AI keys are encrypted with AES-256-GCM before being written to MongoDB; keys are never returned to the frontend.
 - **Deterministic payment guardrails:** the model cannot invent a supplier quote, bypass the cash reserve, exceed the configured single-payment limit, or use a payout rail for an ineligible vendor.
 - **PayPal Orders v2:** stages an order that requires human approval before capture.
@@ -24,7 +24,7 @@
 - The product inventory and vendor quote catalog in `backend/services/agent.js` are hard-coded demo data. They are **not** a live supplier API.
 - The treasury balance is a policy simulation derived from the MongoDB ledger, not a live bank balance.
 - Vendor recipient routing is a demo configuration; do not assume the single `PAYPAL_VENDOR_PAYEE_EMAIL` value is a production supplier directory.
-- The included operator token is a single-admin gate for write/settings endpoints, not user accounts, roles, or a complete identity system.
+- Workspace routes use bearer-session authentication and membership roles; separate legacy transaction, treasury, agent, and AI-settings routes still use a shared operator token. These are separate security surfaces and are not a production-ready unified control plane.
 - Payouts require PayPal account capability and may not be enabled for every Sandbox account.
 - A public demo should use sandbox credentials and synthetic data. A production financial app needs a security review, stronger identity/access controls, audit retention, monitoring, and explicit payment approvals.
 
@@ -80,9 +80,9 @@ The model proposes a supplier action; backend code validates the quote and treas
    npm run dev
    ```
 
-7. Open `http://localhost:5173`. Click **AI Settings**, enter the same `ADMIN_API_TOKEN` as your backend, and click **Connect to backend**.
-8. Select a provider, enter the model ID and API key, click **Test connection**, then **Save provider**.
-9. Use **Send low-stock alert** to run the agent. Use only PayPal Sandbox credentials while testing.
+7. Open `http://localhost:5173` and create a test workspace. The workspace dashboard uses email/password registration and sign-in.
+8. Add synthetic inventory and supplier records, then test purchase requests, approvals, audit history, and the pricing lab.
+9. The older AI/treasury/PayPal APIs use `X-Admin-Token` and are not wired into the current workspace UI. Do not expose `ADMIN_API_TOKEN` to frontend code or use the financial demo with real money.
 
 The Vite development server proxies `/api` to `http://localhost:5000`.
 
@@ -195,7 +195,7 @@ npm run build
 - Do not commit `.env`, real API keys, PayPal secrets, or production database credentials.
 - Keep `ADMIN_API_TOKEN` and `AI_SETTINGS_ENCRYPTION_KEY` separate and private. Rotating the encryption key without re-encrypting stored settings makes old saved keys unreadable.
 - Use HTTPS in hosted environments. The provider API key is sent to your backend, not stored in browser storage.
-- This build's operator-token design is a demo-level gate, not full authentication or per-user authorization. Do not expose it as a production financial operations platform without a security review.
+- The workspace UI uses bearer sessions, but the legacy operator-token API remains a separate shared-admin surface; AI settings are not tenant-scoped yet. A production financial deployment still needs a focused security review, operational rate-limit storage for multiple instances, payment approval review, monitoring, and validated recovery procedures.
 - Real payment execution is irreversible in some cases. Keep the system in Sandbox until guardrails, approvals, webhook handling and business policy have been independently reviewed.
 
 ## Team
@@ -206,3 +206,13 @@ npm run build
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## Current workspace scope and known gaps
+
+- Inventory, supplier, purchase-request, approval, team membership, audit-log, and pricing routes are implemented in the workspace API and scoped by the active company in the inspected code. Continue to run the tests and verify authorization before relying on them with real data.
+- Inventory and supplier records entered in a workspace are stored in MongoDB. The separate legacy agent catalog and treasury starting balance are demonstration/policy data, not live supplier or bank integrations.
+- The legacy `/api/ai/*`, `/api/transactions`, `/api/treasury`, and `/api/agent/*` routes still use `ADMIN_API_TOKEN`; saved AI provider settings are global rather than company-specific. They must not be exposed as ordinary workspace settings.
+- The audit log's application-level guards are not a substitute for database-level insert-only credentials, retention controls, or an external tamper-resistant archive.
+- Authentication throttling currently uses in-memory per-process buckets. If the API is scaled to multiple instances, use a shared rate-limit store or edge protection.
+- See [the Vercel deployment guide](docs/DEPLOYMENT_VERCEL.md) for deploying the frontend on Vercel while retaining the Express API on Render.

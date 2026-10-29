@@ -139,15 +139,16 @@ export default function App() {
   const lowCount = inventory.filter((i) => i.lowStock).length;
   const nav = [['overview', 'Overview', '◫'], ['inventory', 'Inventory', '▦'], ['suppliers', 'Suppliers', '⇄'], ['purchases', 'Purchasing', '↗'], ['recommendations', 'AI insights', '✧'], ['pricing', 'Pricing lab', '％'], ...(['owner','admin'].includes(session.company?.role) ? [['team', 'Team access', '♙'], ['audit', 'Audit log', '◷']] : [])];
   return <div className="app-shell">
-    <aside className="sidebar">
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <aside className="sidebar" aria-label="Workspace navigation">
       <div className="side-brand"><div className="brand-mark small">V<span>M</span></div><div><strong>vendormesh</strong><small>PROCUREMENT OS</small></div></div>
       <div className="workspace-label">WORKSPACE</div><div className="workspace-chip"><span className="company-avatar">{(session.company?.name || 'V').slice(0,1).toUpperCase()}</span><span><b>{session.company?.name}</b><small>{session.company?.role || 'member'}</small></span></div>
-      <nav>{nav.map(([id, label, icon]) => <button key={id} className={tab === id ? 'nav-active' : ''} onClick={() => setTab(id)}><span className="nav-icon">{icon}</span>{label}{id === 'purchases' && summary?.pendingApprovals > 0 && <i>{summary.pendingApprovals}</i>}</button>)}</nav>
+      <nav>{nav.map(([id, label, icon]) => <button key={id} className={tab === id ? 'nav-active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span className="nav-icon">{icon}</span>{label}{id === 'purchases' && summary?.pendingApprovals > 0 && <i>{summary.pendingApprovals}</i>}</button>)}</nav>
       <div className="sidebar-bottom"><div className="secure-note"><span>●</span> Workspace session active</div><button className="signout" onClick={signOut}>↪ Sign out</button></div>
     </aside>
-    <main className="main-area">
+    <main className="main-area" id="main-content" tabIndex="-1">
       <header className="topbar"><div><p className="eyebrow">BUSINESS OPERATIONS / {tab.toUpperCase()}</p><h1>{({overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals',recommendations:'Replenishment intelligence',pricing:'Pricing scenario lab',team:'Team access & permissions',audit:'Workspace audit trail'})[tab]}</h1></div><div className="top-user"><div className="user-avatar">{(session.user?.name || 'U').slice(0,1).toUpperCase()}</div><div><b>{session.user?.name}</b><small>{session.user?.email}</small></div></div></header>
-      {(error || notice) && <div className={error ? 'flash flash-error' : 'flash flash-ok'} role="status">{error || notice}<button onClick={() => {setError('');setNotice('');}}>×</button></div>}
+      {(error || notice) && <div className={error ? 'flash flash-error' : 'flash flash-ok'} role={error ? 'alert' : 'status'}>{error || notice}<button onClick={() => {setError('');setNotice('');}}>×</button></div>}
       {tab === 'overview' && <>
         <section className="welcome-panel"><div><span className="panel-tag">WORKSPACE SNAPSHOT</span><h2>Good decisions start with<br/>good visibility.</h2><p>Monitor stock exposure, supplier coverage and purchase approvals from one place.</p></div><div className="welcome-stat"><span>ESTIMATED INVENTORY VALUE</span><strong>{money(summary?.inventoryValue, session.company?.currency)}</strong><small>Based on on-hand units × unit cost</small></div></section>
         <div className="metric-grid"><Metric label="Inventory items" value={summary?.inventoryCount ?? '—'} note={`${summary?.totalUnits ?? 0} units on hand`} icon="▦"/><Metric label="Low-stock alerts" value={summary?.lowStock ?? 0} note={lowCount ? 'Replenishment may be needed' : 'No items below reorder point'} icon="⌁" tone={lowCount ? 'amber' : ''}/><Metric label="Active suppliers" value={summary?.supplierCount ?? '—'} note="Supplier records in this workspace" icon="⇄"/><Metric label="Pending approvals" value={summary?.pendingApprovals ?? 0} note="Require owner/admin review" icon="◷" tone={summary?.pendingApprovals ? 'amber' : ''}/></div>
