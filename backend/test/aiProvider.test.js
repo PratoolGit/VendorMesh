@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testAIProvider } from '../services/aiProvider.js';
+import AISettings from '../models/AISettings.js';
 
 const originalFetch = globalThis.fetch;
 
@@ -40,3 +41,12 @@ for (const provider of ['anthropic', 'openai', 'gemini']) {
     assert.ok(requestedBody.includes('Reply with OK.'));
   });
 }
+
+
+test('AI settings distinguish global legacy configuration from company-scoped settings', () => {
+  const indexes = AISettings.schema.indexes();
+  const scoped = indexes.find(([fields, options]) => fields.companyId === 1 && options.unique);
+  assert.ok(scoped, 'expected a unique workspace settings index');
+  assert.equal(scoped[1].partialFilterExpression.companyId.$type, 'objectId');
+  assert.ok(AISettings.schema.path('keyLast4'));
+});

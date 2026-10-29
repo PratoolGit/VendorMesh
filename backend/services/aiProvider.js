@@ -45,36 +45,74 @@ export function providerDefaults(provider) {
   return PROVIDERS[provider];
 }
 
-export async function getAIConfig() {
-  const saved = await AISettings.findOne().lean();
-  if (saved) return { provider: saved.provider, model: saved.model, apiKey: decrypt(saved), configured: true, source: 'database' };
+const aiSettingsScope = (companyId) => companyId
+  ? { companyId }
+  : { companyId: { $exists: false } };
+
+export async function getAIConfig({ companyId } = {}) {
+  const saved = await AISettings.findOne(aiSettingsScope(companyId)).lean();
+  if (saved) {
+    const apiKey = decrypt(saved);
+    return {
+      provider: saved.provider,
+      model: saved.model,
+      apiKey,
+      keyLast4: saved.keyLast4 || apiKey.slice(-4),
+      configured: true,
+      source: companyId ? 'workspace' : 'database'
+    };
+  }
+
+  // Workspace requests must never silently fall back to a global key or environment secret.
+  if (companyId) {
+    return {
+      provider: 'anthropic',
+      model: PROVIDERS.anthropic.defaultModel,
+      apiKey: '',
+      keyLast4: '',
+      configured: false,
+      source: 'workspace'
+    };
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY || '';
   return {
     provider: 'anthropic',
     model: process.env.ANTHROPIC_MODEL || PROVIDERS.anthropic.defaultModel,
     apiKey,
+    keyLast4: apiKey ? apiKey.slice(-4) : '',
     configured: Boolean(apiKey),
     source: 'environment',
   };
 }
 
-export async function getPublicAIConfig() {
-  const config = await getAIConfig();
-  return { provider: config.provider, model: config.model, keyConfigured: Boolean(config.apiKey), source: config.source };
+export async function getPublicAIConfig({ companyId } = {}) {
+  const config = await getAIConfig({ companyId });
+  return {
+    provider: config.provider,
+    model: config.model,
+    keyConfigured: Boolean(config.apiKey),
+    maskedKey: config.apiKey ? '••••' + config.keyLast4 : '',
+    source: config.source
+  };
 }
 
-export async function saveAIConfig({ provider, model, apiKey }) {
+export async function getPublicAIConfigForCompany(companyId) {
+  return getPublicAIConfig({ companyId });
+}
+
+export async function saveAIConfig({ provider, model, apiKey, companyId }) {
   providerDefaults(provider);
   if (typeof model !== 'string' || !/^[a-zA-Z0-9._:-]{2,120}$/.test(model.trim())) throw new Error('Enter a valid model ID.');
-  if (typeof apiKey !== 'string' || apiKey.trim().length < 10) throw new Error('Enter a valid API key.');
-  const encrypted = encrypt(apiKey.trim());
+  if (typeof apiKey !== 'string' || apiKey.trim().length < 10 || apiKey.trim().length > 512) throw new Error('Enter a valid API key.');
+  const cleanKey = apiKey.trim();
+  const encrypted = encrypt(cleanKey);
   await AISettings.findOneAndUpdate(
-    {},
-    { $set: { provider, model: model.trim(), ...encrypted, updatedAt: new Date() } },
+    aiSettingsScope(companyId),
+    { $set: { ...(companyId ? { companyId } : {}), provider, model: model.trim(), ...encrypted, keyLast4: cleanKey.slice(-4), updatedAt: new Date() } },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
-  return getPublicAIConfig();
+  return getPublicAIConfig({ companyId });
 }
 
 function openAIHistory(messages) {
@@ -174,33 +212,47 @@ function geminiTools(tools) {
   })) }];
 }
 
-export async function callAIModel(messages, systemPrompt, tools) {
-  const config = await getAIConfig();
-  if (!config.apiKey) throw new Error(`No API key configured for ${config.provider}. Open AI Settings and save a provider key.`);
+export async function callAIModel(messages, systemPrompt, tools = [], options = {}) {
+  const config = await getAIConfig(options);
+  if (!config.apiKey) throw new Error(`No API key configured for ${config.provider}. Configure an authorized provider key first.`);
   const provider = config.provider;
+  const providerTools = Array.isArray(tools) ? tools : [];
 
   if (provider === 'anthropic') {
+    const payload = { model: config.model, max_tokens: 1500, system: systemPrompt, messages };
+    if (providerTools.length) {
+      payload.tools = providerTools;
+      payload.tool_choice = { type: 'auto', disable_parallel_tool_use: true };
+    }
     const res = await timedFetch(PROVIDERS.anthropic.keyUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': config.apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: config.model, max_tokens: 1500, system: systemPrompt, tools,
-        tool_choice: { type: 'auto', disable_parallel_tool_use: true }, messages,
-      }),
+      body: JSON.stringify(payload),
     });
-    return readResponse(res, 'Anthropic');
+    const data = await readResponse(res, 'Anthropic');
+    return {
+      ...data,
+      usage: {
+        inputTokens: Number.isSafeInteger(data.usage?.input_tokens) ? data.usage.input_tokens : null,
+        outputTokens: Number.isSafeInteger(data.usage?.output_tokens) ? data.usage.output_tokens : null
+      }
+    };
   }
 
   if (provider === 'openai') {
     const history = openAIHistory(messages);
+    const payload = {
+      model: config.model, max_tokens: 1500,
+      messages: [{ role: 'system', content: systemPrompt }, ...history]
+    };
+    if (providerTools.length) {
+      payload.tools = openAITools(providerTools);
+      payload.tool_choice = 'auto';
+    }
     const res = await timedFetch(PROVIDERS.openai.keyUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
-      body: JSON.stringify({
-        model: config.model, max_tokens: 1500,
-        messages: [{ role: 'system', content: systemPrompt }, ...history],
-        tools: openAITools(tools), tool_choice: 'auto',
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await readResponse(res, 'OpenAI');
     const message = data.choices?.[0]?.message || {};
@@ -211,20 +263,28 @@ export async function callAIModel(messages, systemPrompt, tools) {
       try { input = JSON.parse(call.function?.arguments || '{}'); } catch { throw new Error('OpenAI returned malformed tool arguments.'); }
       content.push({ type: 'tool_use', id: call.id, name: call.function.name, input });
     }
-    return { content, stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn' };
+    return {
+      content,
+      stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn',
+      usage: {
+        inputTokens: Number.isSafeInteger(data.usage?.prompt_tokens) ? data.usage.prompt_tokens : null,
+        outputTokens: Number.isSafeInteger(data.usage?.completion_tokens) ? data.usage.completion_tokens : null
+      }
+    };
   }
 
   if (provider === 'gemini') {
     const url = `${PROVIDERS.gemini.keyUrl}/${encodeURIComponent(config.model)}:generateContent`;
+    const payload = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: geminiHistory(messages),
+      generationConfig: { maxOutputTokens: 1500, temperature: 0.2 },
+    };
+    if (providerTools.length) payload.tools = geminiTools(providerTools);
     const res = await timedFetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': config.apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: geminiHistory(messages),
-        tools: geminiTools(tools),
-        generationConfig: { maxOutputTokens: 1500, temperature: 0.2 },
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await readResponse(res, 'Gemini');
     const parts = data.candidates?.[0]?.content?.parts || [];
@@ -238,7 +298,14 @@ export async function callAIModel(messages, systemPrompt, tools) {
         input: part.functionCall.args || {},
       });
     }
-    return { content, stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn' };
+    return {
+      content,
+      stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn',
+      usage: {
+        inputTokens: Number.isSafeInteger(data.usageMetadata?.promptTokenCount) ? data.usageMetadata.promptTokenCount : null,
+        outputTokens: Number.isSafeInteger(data.usageMetadata?.candidatesTokenCount) ? data.usageMetadata.candidatesTokenCount : null
+      }
+    };
   }
 
   throw new Error('Unsupported AI provider.');
