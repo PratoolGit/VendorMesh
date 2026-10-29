@@ -18,7 +18,7 @@ import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
-import { normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
+import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import { createRateLimiter } from './services/rateLimit.js';
 import * as paypal from './services/paypalService.js';
@@ -275,12 +275,9 @@ app.get('/api/workspace/suppliers', requireSession, wrap(async (req, res) => {
 }));
 
 app.post('/api/workspace/suppliers', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
-  const name = cleanText(req.body?.name, 180);
-  const email = cleanText(req.body?.email, 254).toLowerCase();
-  const leadTimeDays = Number(req.body?.leadTimeDays ?? 7);
-  const reliabilityScore = Number(req.body?.reliabilityScore ?? 80);
-  if (name.length < 2 || !Number.isFinite(leadTimeDays) || leadTimeDays < 0 || leadTimeDays > 3650 || !Number.isFinite(reliabilityScore) || reliabilityScore < 0 || reliabilityScore > 100) return res.status(400).json({ error: 'Enter a supplier name, valid lead time, and reliability score from 0 to 100.' });
-  const supplier = await Supplier.create({ ...workspace(req), name, email, leadTimeDays, reliabilityScore, paymentTerms: cleanText(req.body?.paymentTerms, 120) || 'Net 30', notes: cleanText(req.body?.notes, 2000) });
+  const normalized = normalizeSupplierCreate(req.body, req.session.role);
+  if (normalized.error) return res.status(normalized.status || 400).json({ error: normalized.error });
+  const supplier = await Supplier.create({ ...workspace(req), ...normalized.supplier });
   req.auditAction = 'supplier.created';
   res.status(201).json(supplier);
 }));

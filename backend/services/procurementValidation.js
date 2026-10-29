@@ -5,6 +5,57 @@ const SUPPLIER_STRING_FIELDS = {
   notes: { max: 2000, required: false }
 };
 
+export function normalizeSupplierCreate(body, role) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Provide supplier details.' };
+  }
+  const allowed = new Set(['name', 'email', 'leadTimeDays', 'reliabilityScore', 'paymentTerms', 'notes']);
+  if (Object.keys(body).some((key) => !allowed.has(key))) return { error: 'Unsupported supplier field.' };
+
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (name.length < 2 || name.length > 180) return { error: 'Supplier name must be 2–180 characters.' };
+
+  const email = body.email === undefined ? '' : body.email;
+  if (typeof email !== 'string' || email.trim().length > 254
+    || (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
+    return { error: 'Enter a valid supplier email address.' };
+  }
+
+  const hasProtectedFields = ['leadTimeDays', 'reliabilityScore', 'paymentTerms'].some((field) => body[field] !== undefined);
+  if (role === 'staff' && hasProtectedFields) {
+    return { status: 403, error: 'Only owners and admins can set supplier lead time, reliability, or payment terms. Staff can add the supplier contact details.' };
+  }
+
+  const leadTimeDays = body.leadTimeDays === undefined ? 7 : Number(body.leadTimeDays);
+  const reliabilityScore = body.reliabilityScore === undefined ? 80 : Number(body.reliabilityScore);
+  if (!Number.isFinite(leadTimeDays) || leadTimeDays < 0 || leadTimeDays > 3650) {
+    return { error: 'Lead time must be between 0 and 3650 days.' };
+  }
+  if (!Number.isFinite(reliabilityScore) || reliabilityScore < 0 || reliabilityScore > 100) {
+    return { error: 'Reliability score must be between 0 and 100.' };
+  }
+
+  const paymentTerms = body.paymentTerms === undefined ? 'Net 30' : body.paymentTerms;
+  const notes = body.notes === undefined ? '' : body.notes;
+  if (typeof paymentTerms !== 'string' || paymentTerms.trim().length > 120) {
+    return { error: 'Payment terms must be text up to 120 characters.' };
+  }
+  if (typeof notes !== 'string' || notes.trim().length > 2000) {
+    return { error: 'Supplier notes must be text up to 2000 characters.' };
+  }
+
+  return {
+    supplier: {
+      name,
+      email: email.trim().toLowerCase(),
+      leadTimeDays,
+      reliabilityScore,
+      paymentTerms: paymentTerms.trim() || 'Net 30',
+      notes: notes.trim()
+    }
+  };
+}
+
 export function normalizeSupplierPatch(body, role) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { error: 'Provide supplier fields to update.' };
@@ -13,6 +64,7 @@ export function normalizeSupplierPatch(body, role) {
   const patch = {};
   for (const [field, config] of Object.entries(SUPPLIER_STRING_FIELDS)) {
     if (body[field] === undefined) continue;
+    if (field === 'paymentTerms' && role === 'staff') return { status: 403, error: 'Only owners and admins can change supplier payment terms.' };
     if (typeof body[field] !== 'string') return { error: `${field} must be text.` };
     const value = body[field].trim();
     if (value.length > config.max) return { error: `${field} must be no longer than ${config.max} characters.` };
