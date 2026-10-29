@@ -20,6 +20,26 @@ async function api(path, options = {}) {
 }
 const money = (v, currency = 'USD') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(v || 0));
 
+function NavIcon({ name }) {
+  const common = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: false };
+  const glyphs = {
+    overview: <><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></>,
+    inventory: <><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/><path d="M12 13v8"/></>,
+    suppliers: <><path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></>,
+    purchases: <><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6M9 18h3"/></>,
+    invoices: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h4M9 12h6M9 16h6"/></>,
+    sparkles: <><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></>,
+    forecast: <><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-6"/><path d="M16 7h3v3"/></>,
+    anomalies: <><path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z"/><path d="M12 8v4M12 16h.01"/></>,
+    pricing: <><path d="M4 19V5M4 19h17"/><path d="m7 15 3-4 3 2 5-6"/><circle cx="18" cy="7" r="1"/></>,
+    reconciliation: <><path d="M4 7h13l-3-3M20 17H7l3 3"/><path d="M17 4 20 7l-3 3M7 14l-3 3 3 3"/></>,
+    team: <><circle cx="9" cy="8" r="3"/><path d="M3 20v-1.2A4.8 4.8 0 0 1 7.8 14h2.4a4.8 4.8 0 0 1 4.8 4.8V20M16 5.5a3 3 0 0 1 0 5.8M18 14a4.7 4.7 0 0 1 3 4.4V20"/></>,
+    audit: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
+    key: <><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8 2 2-2 2 2 2-3 3-2-2-2 2"/></>
+  };
+  return <svg {...common}>{glyphs[name] || glyphs.overview}</svg>;
+}
+
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState('register');
   const [form, setForm] = useState({ name: '', email: '', password: '', companyName: '' });
@@ -163,13 +183,13 @@ export default function App() {
   if (!session) return <AuthScreen onAuthenticated={authenticated} />;
 
   const lowCount = inventory.filter((i) => i.lowStock).length;
-  const nav = [['overview', 'Overview', '◫'], ['inventory', 'Inventory', '▦'], ['suppliers', 'Suppliers', '⇄'], ['purchases', 'Purchasing', '↗'], ['invoices', 'Invoices', '▤'], ['recommendations', 'AI insights', '✧'], ['forecast', 'Forecast', '⌁'], ['anomalies', 'Review queue', '!'], ['pricing', 'Pricing lab', '％'], ...(['owner','admin'].includes(session.company?.role) ? [['reconciliation', 'Reconciliation', '⇄'], ['team', 'Team access', '♙'], ['audit', 'Audit log', '◷'], ['ai', 'AI copilot', '✧'], ['api-keys', 'API access', '⌘']] : [])];
+  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(['owner','admin'].includes(session.company?.role) ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <aside className="sidebar" aria-label="Workspace navigation">
       <div className="side-brand"><img className="brand-symbol" src="/vendormesh-mark.svg" alt="" /><div><strong>VendorMesh</strong><small>PROCUREMENT WORKSPACE</small></div></div>
       <div className="workspace-label">WORKSPACE</div><div className="workspace-chip"><span className="company-avatar">{(session.company?.name || 'V').slice(0,1).toUpperCase()}</span><span><b>{session.company?.name}</b><small>{session.company?.role || 'member'}</small></span></div>
-      <nav>{nav.map(([id, label, icon]) => <button key={id} className={tab === id ? 'nav-active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span className="nav-icon">{icon}</span>{label}{id === 'purchases' && summary?.pendingApprovals > 0 && <i>{summary.pendingApprovals}</i>}</button>)}</nav>
+      <nav>{nav.map(([id, label, icon]) => <button key={id} className={tab === id ? 'nav-active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span className="nav-icon"><NavIcon name={icon}/></span>{label}{id === 'purchases' && summary?.pendingApprovals > 0 && <i>{summary.pendingApprovals}</i>}</button>)}</nav>
       <div className="sidebar-bottom"><div className="secure-note"><span>●</span> Workspace session active</div><button className="signout" onClick={signOut}>↪ Sign out</button></div>
     </aside>
     <main className="main-area" id="main-content" tabIndex="-1">

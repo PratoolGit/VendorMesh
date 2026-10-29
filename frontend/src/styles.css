@@ -234,3 +234,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .footer{display:grid;gap:5px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+.nav-icon{display:grid;place-items:center;flex-shrink:0}
+.nav-icon svg{display:block;width:16px;height:16px;stroke:currentColor}
+.sidebar nav button{gap:11px}
+@media(max-width:760px){.nav-icon svg{width:15px;height:15px}.sidebar nav button{gap:6px}}
