@@ -18,6 +18,7 @@ import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
+import { createWorkspaceAIRouter } from './routes/workspaceAI.js';
 import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { validatePurchaseTransition } from './services/purchaseWorkflow.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
@@ -206,6 +207,7 @@ const cleanText = (value, max = 180) => typeof value === 'string' ? value.trim()
 app.use('/api/workspace', createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/audit-log', createAuditRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/pricing-simulator', createPricingSimulatorRouter({ requireSession }));
+app.use('/api/workspace/ai', createWorkspaceAIRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
   const scope = workspace(req);
