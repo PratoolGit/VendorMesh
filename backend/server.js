@@ -19,6 +19,7 @@ import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
+import { createRateLimiter } from './services/rateLimit.js';
 import * as paypal from './services/paypalService.js';
 import { runInventoryAgent, getInventory, getTreasury } from './services/agent.js';
 import { getPublicAIConfig, saveAIConfig, testAIProvider } from './services/aiProvider.js';
@@ -34,6 +35,9 @@ const CLIENT_URL = ORIGINS[0];
 
 const app = express();
 app.disable('x-powered-by');
+// Render places one trusted proxy in front of the Node service in production.
+// Do not trust forwarded client IP headers in local development.
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // Platform probes: liveness does not depend on external services; readiness reflects MongoDB.
 app.get('/health/live', (_req, res) => res.status(200).json({ status: 'ok' }));
@@ -53,6 +57,10 @@ app.use(cors({ origin: ORIGINS }));
 app.use(express.json({ limit: '256kb', verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); } }));
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Per-process protection for account creation and login. See deployment docs for the
+// shared-store requirement when multiple API instances are used.
+const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, maxRequests: 20 });
 
 /* ------------------------------- Admin security ------------------------------- */
 
@@ -120,7 +128,7 @@ function makeCompanySlug(name) {
   return `${base}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
-app.post('/api/auth/register', wrap(async (req, res) => {
+app.post('/api/auth/register', authRateLimit, wrap(async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = req.body?.password;
@@ -149,7 +157,7 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   }
 }));
 
-app.post('/api/auth/login', wrap(async (req, res) => {
+app.post('/api/auth/login', authRateLimit, wrap(async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = req.body?.password;
   const user = await User.findOne({ email, disabled: false }).select('+passwordHash');
