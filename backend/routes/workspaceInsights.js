@@ -81,6 +81,10 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
       if (role !== undefined) membership.role = role;
       if (status !== undefined) membership.status = status;
       await user.save();
+      req.auditAction = role !== undefined && status !== undefined
+        ? 'team.updated'
+        : role !== undefined ? 'team.role_changed' : 'team.access_changed';
+      req.auditResource = '/api/workspace/team/' + String(user._id);
       res.json({ id: String(user._id), name: user.name, email: user.email, role: membership.role, status: user.disabled ? 'suspended' : membership.status });
     } catch (error) { next(error); }
   });

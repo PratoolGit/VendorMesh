@@ -103,13 +103,14 @@ async function requireSession(req, res, next) {
     // prompts, invoice contents, or other potentially sensitive payloads.
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
       res.once('finish', () => {
-        const resource = String(req.originalUrl || req.path).split('?')[0].slice(0, 240);
+        const resource = String(req.auditResource || req.originalUrl || req.path).split('?')[0].slice(0, 240);
+        const action = String(req.auditAction || req.method).slice(0, 20);
         const requestId = String(req.get('x-request-id') || '').replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 100);
         AuditLog.create({
           companyId: claims.companyId,
           actorUserId: claims.sub,
           actorRole: membership.role,
-          action: req.method,
+          action,
           resource,
           statusCode: res.statusCode,
           requestId
@@ -235,6 +236,7 @@ app.post('/api/workspace/inventory', requireSession, requireWorkspaceRole('owner
   if (!sku || !name || ![onHand, reorderPoint, unitCost, dailyDemand].every(Number.isFinite) || [onHand, reorderPoint, unitCost, dailyDemand].some((n) => n < 0)) return res.status(400).json({ error: 'Provide SKU, name, and non-negative numeric inventory values.' });
   try {
     const item = await InventoryItem.create({ ...workspace(req), sku, name, onHand, reorderPoint, unitCost, dailyDemand });
+    req.auditAction = 'inventory.created';
     res.status(201).json(item);
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'That SKU already exists in this workspace.' });
@@ -256,6 +258,7 @@ app.patch('/api/workspace/inventory/:id', requireSession, requireWorkspaceRole('
   }
   const item = await InventoryItem.findOneAndUpdate({ _id: req.params.id, ...workspace(req) }, { $set: patch }, { new: true, runValidators: true }).lean();
   if (!item) return res.status(404).json({ error: 'Inventory item not found in this workspace.' });
+  req.auditAction = 'inventory.updated';
   res.json(item);
 }));
 
@@ -263,6 +266,7 @@ app.delete('/api/workspace/inventory/:id', requireSession, requireWorkspaceRole(
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory item id.' });
   const item = await InventoryItem.findOneAndDelete({ _id: req.params.id, ...workspace(req) });
   if (!item) return res.status(404).json({ error: 'Inventory item not found in this workspace.' });
+  req.auditAction = 'inventory.deleted';
   res.sendStatus(204);
 }));
 
@@ -277,6 +281,7 @@ app.post('/api/workspace/suppliers', requireSession, requireWorkspaceRole('owner
   const reliabilityScore = Number(req.body?.reliabilityScore ?? 80);
   if (name.length < 2 || !Number.isFinite(leadTimeDays) || leadTimeDays < 0 || leadTimeDays > 3650 || !Number.isFinite(reliabilityScore) || reliabilityScore < 0 || reliabilityScore > 100) return res.status(400).json({ error: 'Enter a supplier name, valid lead time, and reliability score from 0 to 100.' });
   const supplier = await Supplier.create({ ...workspace(req), name, email, leadTimeDays, reliabilityScore, paymentTerms: cleanText(req.body?.paymentTerms, 120) || 'Net 30', notes: cleanText(req.body?.notes, 2000) });
+  req.auditAction = 'supplier.created';
   res.status(201).json(supplier);
 }));
 
@@ -290,6 +295,7 @@ app.patch('/api/workspace/suppliers/:id', requireSession, requireWorkspaceRole('
     { new: true, runValidators: true }
   ).lean();
   if (!supplier) return res.status(404).json({ error: 'Supplier not found in this workspace.' });
+  req.auditAction = 'supplier.updated';
   res.json(supplier);
 }));
 
@@ -321,6 +327,7 @@ app.post('/api/workspace/purchase-requests', requireSession, requireWorkspaceRol
     currency: company.currency || 'USD', status,
     rationale: cleanText(req.body?.rationale, 2000)
   });
+  req.auditAction = 'purchase.created';
   res.status(201).json({ ...request.toObject(), policy: { maxSinglePayment: limit, exceedsSinglePaymentLimit: totalCost > limit, approvalRequired: true } });
 }));
 
@@ -346,6 +353,7 @@ app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireW
     { new: true, runValidators: true }
   );
   if (!reviewed) return res.status(409).json({ error: 'This purchase request was already reviewed. Refresh the workspace and try again.' });
+  req.auditAction = decision === 'approved' ? 'purchase.approved' : 'purchase.rejected';
   res.json(reviewed);
 }));
 
