@@ -85,8 +85,9 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) return res.status(400).json({ error: 'Enter a valid email address.' });
   if (companyName.length < 2 || companyName.length > 120) return res.status(400).json({ error: 'Company name must be 2–120 characters.' });
   const passwordHash = await hashPassword(password);
-  const user = await User.create({ name, email, passwordHash, memberships: [] });
+  let user;
   try {
+    user = await User.create({ name, email, passwordHash, memberships: [] });
     const company = await Company.create({ name: companyName, slug: makeCompanySlug(companyName), ownerUserId: user._id });
     user.memberships.push({ companyId: company._id, role: 'owner', status: 'active' });
     await user.save();
@@ -123,13 +124,12 @@ app.post('/api/auth/login', wrap(async (req, res) => {
 }));
 
 app.get('/api/auth/me', requireSession, wrap(async (req, res) => {
-  const [user, company] = await Promise.all([
-    User.findById(req.session.sub).select('name email memberships').lean(),
-    Company.findOne({ _id: req.session.companyId, _id: { $in: (await User.findById(req.session.sub).select('memberships').lean())?.memberships.filter((m) => m.status === 'active').map((m) => m.companyId) || [] } }).lean()
-  ]);
-  if (!user || !company) return res.status(401).json({ error: 'Session workspace is no longer available.' });
-  const membership = user.memberships.find((m) => String(m.companyId) === String(company._id) && m.status === 'active');
+  const user = await User.findById(req.session.sub).select('name email memberships').lean();
+  if (!user) return res.status(401).json({ error: 'Session user is no longer available.' });
+  const membership = user.memberships.find((m) => String(m.companyId) === String(req.session.companyId) && m.status === 'active');
   if (!membership) return res.status(403).json({ error: 'No active membership for this workspace.' });
+  const company = await Company.findById(req.session.companyId).lean();
+  if (!company) return res.status(401).json({ error: 'Session workspace is no longer available.' });
   return res.json({ user: { id: String(user._id), name: user.name, email: user.email }, company: { id: String(company._id), name: company.name, slug: company.slug, role: membership.role } });
 }));
 
