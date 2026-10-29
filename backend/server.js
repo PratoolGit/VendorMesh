@@ -18,6 +18,7 @@ import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
+import { normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import { createRateLimiter } from './services/rateLimit.js';
 import * as paypal from './services/paypalService.js';
@@ -281,20 +282,13 @@ app.post('/api/workspace/suppliers', requireSession, requireWorkspaceRole('owner
 
 app.patch('/api/workspace/suppliers/:id', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid supplier id.' });
-  const patch = {};
-  for (const [input, field, max] of [['name','name',180],['email','email',254],['paymentTerms','paymentTerms',120],['notes','notes',2000]]) {
-    if (req.body?.[input] !== undefined) patch[field] = cleanText(req.body[input], max);
-  }
-  if (patch.email) patch.email = patch.email.toLowerCase();
-  for (const [input, field, min, max] of [['leadTimeDays','leadTimeDays',0,3650],['reliabilityScore','reliabilityScore',0,100]]) {
-    if (req.body?.[input] !== undefined) {
-      const n = Number(req.body[input]);
-      if (!Number.isFinite(n) || n < min || n > max) return res.status(400).json({ error: `${input} is outside the allowed range.` });
-      patch[field] = n;
-    }
-  }
-  if (req.body?.active !== undefined) patch.active = Boolean(req.body.active);
-  const supplier = await Supplier.findOneAndUpdate({ _id: req.params.id, ...workspace(req) }, { $set: patch }, { new: true, runValidators: true }).lean();
+  const result = normalizeSupplierPatch(req.body, req.session.role);
+  if (result.error) return res.status(result.status || 400).json({ error: result.error });
+  const supplier = await Supplier.findOneAndUpdate(
+    { _id: req.params.id, ...workspace(req) },
+    { $set: result.patch },
+    { new: true, runValidators: true }
+  ).lean();
   if (!supplier) return res.status(404).json({ error: 'Supplier not found in this workspace.' });
   res.json(supplier);
 }));
@@ -316,9 +310,11 @@ app.post('/api/workspace/purchase-requests', requireSession, requireWorkspaceRol
   if (!item || !supplier || !company) return res.status(404).json({ error: 'Inventory item, active supplier, or workspace not found.' });
   const unitCost = Number(req.body?.unitCost ?? item.unitCost);
   if (!Number.isFinite(unitCost) || unitCost < 0 || unitCost > 100000000) return res.status(400).json({ error: 'Enter a valid non-negative unit cost.' });
-  const totalCost = Math.round(unitCost * quantity * 100) / 100;
+  const total = calculatePurchaseTotal(unitCost, quantity);
+  if (total.error) return res.status(400).json({ error: total.error });
+  const totalCost = total.totalCost;
   const limit = Number(company.settings?.maxSinglePayment ?? process.env.MAX_SINGLE_PAYMENT ?? 15000);
-  const status = totalCost > limit ? 'pending' : 'pending';
+  const status = 'pending';
   const request = await PurchaseRequest.create({
     ...scope, createdBy: req.session.sub, inventoryItemId: item._id, supplierId: supplier._id,
     sku: item.sku, itemName: item.name, quantity, unitCost, totalCost,
@@ -332,18 +328,25 @@ app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireW
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid purchase request id.' });
   const decision = req.body?.decision;
   if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'Decision must be approved or rejected.' });
-  const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) });
+  const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) }).lean();
   if (!request) return res.status(404).json({ error: 'Purchase request not found in this workspace.' });
   if (request.status !== 'pending') return res.status(409).json({ error: 'Only pending requests can be reviewed.' });
   const company = await Company.findById(req.session.companyId).lean();
   const max = Number(company?.settings?.maxSinglePayment ?? process.env.MAX_SINGLE_PAYMENT ?? 15000);
   if (decision === 'approved' && request.totalCost > max) return res.status(409).json({ error: 'This request exceeds the company single-purchase limit. Update the limit through an authorized financial-controls workflow before approving.' });
-  request.status = decision;
-  request.reviewedBy = req.session.sub;
-  request.reviewedAt = new Date();
-  request.reviewNote = cleanText(req.body?.note, 1000);
-  await request.save();
-  res.json(request);
+  // Compare-and-set the state so concurrent review requests cannot both win.
+  const reviewed = await PurchaseRequest.findOneAndUpdate(
+    { _id: req.params.id, ...workspace(req), status: 'pending' },
+    { $set: {
+      status: decision,
+      reviewedBy: req.session.sub,
+      reviewedAt: new Date(),
+      reviewNote: cleanText(req.body?.note, 1000)
+    } },
+    { new: true, runValidators: true }
+  );
+  if (!reviewed) return res.status(409).json({ error: 'This purchase request was already reviewed. Refresh the workspace and try again.' });
+  res.json(reviewed);
 }));
 
 /* ---------------------------------- Read API --------------------------------- */
@@ -502,9 +505,23 @@ async function scanInventory() {
 
 app.use((req, res) => res.status(404).json({ error: `Not found: ${req.method} ${req.path}` }));
 // eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  console.error('[error]', err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+app.use((err, req, res, _next) => {
+  const statusCode = Number.isInteger(err.status) && err.status >= 400 && err.status <= 599 ? err.status : 500;
+  const requestId = String(req.get('x-request-id') || '').replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 100);
+  // Do not serialize an error object or stack trace into production logs/responses.
+  console.error('[error]', {
+    statusCode,
+    method: req.method,
+    path: req.path,
+    ...(requestId ? { requestId } : {}),
+    message: statusCode >= 500 && process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : String(err.message || 'Request failed').slice(0, 300)
+  });
+  const message = process.env.NODE_ENV === 'production' && statusCode >= 500
+    ? 'Internal server error'
+    : (err.message || 'Internal server error');
+  res.status(statusCode).json({ error: message });
 });
 
 /* ------------------------------------ Boot ----------------------------------- */
