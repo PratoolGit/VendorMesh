@@ -16,6 +16,7 @@ import Supplier from './models/Supplier.js';
 import PurchaseRequest from './models/PurchaseRequest.js';
 import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
+import { createAuditRouter } from './routes/audit.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import * as paypal from './services/paypalService.js';
 import { runInventoryAgent, getInventory, getTreasury } from './services/agent.js';
@@ -184,6 +185,7 @@ const workspace = (req) => ({ companyId: req.session.companyId });
 const cleanText = (value, max = 180) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
 app.use('/api/workspace', createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }));
+app.use('/api/workspace/audit-log', createAuditRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
   const scope = workspace(req);
