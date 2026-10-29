@@ -14,6 +14,7 @@ import Company from './models/Company.js';
 import InventoryItem from './models/InventoryItem.js';
 import Supplier from './models/Supplier.js';
 import PurchaseRequest from './models/PurchaseRequest.js';
+import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import * as paypal from './services/paypalService.js';
 import { runInventoryAgent, getInventory, getTreasury } from './services/agent.js';
@@ -62,7 +63,7 @@ function requireAdmin(req, res, next) {
 
 /* ------------------------------ Account identity ------------------------------ */
 
-function requireSession(req, res, next) {
+async function requireSession(req, res, next) {
   const header = req.get('authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   let claims;
@@ -70,8 +71,18 @@ function requireSession(req, res, next) {
     return res.status(503).json({ error: err.message });
   }
   if (!claims) return res.status(401).json({ error: 'Sign in required or session expired.' });
-  req.session = claims;
-  return next();
+  try {
+    // Re-check membership on every authenticated request so removed/suspended members
+    // and stale role claims cannot keep using a previously issued bearer token.
+    const user = await User.findById(claims.sub).select('memberships disabled').lean();
+    if (!user || user.disabled) return res.status(401).json({ error: 'This account is disabled. Sign in with an active account.' });
+    const membership = user.memberships.find((m) => String(m.companyId) === String(claims.companyId) && m.status === 'active');
+    if (!membership) return res.status(403).json({ error: 'No active membership for this workspace.' });
+    req.session = { ...claims, role: membership.role };
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 function makeCompanySlug(name) {
@@ -150,6 +161,8 @@ function requireWorkspaceRole(...roles) {
 
 const workspace = (req) => ({ companyId: req.session.companyId });
 const cleanText = (value, max = 180) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+
+app.use('/api/workspace', createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
   const scope = workspace(req);
