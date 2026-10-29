@@ -37,7 +37,7 @@ function requireScope(scope) {
   };
 }
 
-function authenticateAPIKey() {
+function authenticateAPIKey({ workspaceAPIKeyModel, userModel }) {
   return async (req, res, next) => {
     const authorization = req.get('authorization') || '';
     const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -46,7 +46,7 @@ function authenticateAPIKey() {
 
     try {
       const now = new Date();
-      const key = await WorkspaceAPIKey.findOne({
+      const key = await workspaceAPIKeyModel.findOne({
         _id: parsed.id,
         revokedAt: null,
         expiresAt: { $gt: now }
@@ -58,7 +58,7 @@ function authenticateAPIKey() {
       }
 
       // Tie the key's continuing validity to its creator's active owner/admin membership.
-      const user = await User.findById(key.createdBy).select('memberships disabled').lean();
+      const user = await userModel.findById(key.createdBy).select('memberships disabled').lean();
       const membership = user?.memberships?.find((item) =>
         String(item.companyId) === String(key.companyId) && item.status === 'active'
       );
@@ -66,7 +66,7 @@ function authenticateAPIKey() {
         return res.status(401).json({ error: 'The API key owner no longer has active administrative access.' });
       }
 
-      await WorkspaceAPIKey.updateOne(
+      await workspaceAPIKeyModel.updateOne(
         { _id: key._id, keyHash: key.keyHash, revokedAt: null },
         { $set: { lastUsedAt: now } }
       );
@@ -89,11 +89,17 @@ function paginationResult(rows, limit, serialize = (row) => row) {
   };
 }
 
-export function createPublicAPIRouter() {
+export function createPublicAPIRouter({
+  workspaceAPIKeyModel = WorkspaceAPIKey,
+  userModel = User,
+  inventoryItemModel = InventoryItem,
+  supplierModel = Supplier,
+  purchaseRequestModel = PurchaseRequest
+} = {}) {
   const router = express.Router();
   // Process-local defense in depth; use a shared edge/store before running multiple instances.
   router.use(createRateLimiter({ windowMs: 60_000, maxRequests: 240 }));
-  router.use(authenticateAPIKey());
+  router.use(authenticateAPIKey({ workspaceAPIKeyModel, userModel }));
   router.use(createRateLimiter({
     windowMs: 60_000,
     maxRequests: 120,
@@ -119,7 +125,7 @@ export function createPublicAPIRouter() {
     if (lowStock.value === false) filter.$expr = { $gt: ['$onHand', '$reorderPoint'] };
 
     try {
-      const rows = await InventoryItem.find(filter)
+      const rows = await inventoryItemModel.find(filter)
         .sort({ _id: 1 }).limit(limit)
         .select('_id sku name onHand reorderPoint unitCost dailyDemand supplierId createdAt updatedAt')
         .lean();
@@ -144,7 +150,7 @@ export function createPublicAPIRouter() {
       filter.name = req.query.name.trim();
     }
     try {
-      const rows = await Supplier.find(filter)
+      const rows = await supplierModel.find(filter)
         .sort({ _id: 1 }).limit(limit)
         .select('_id name email leadTimeDays reliabilityScore paymentTerms active createdAt updatedAt')
         .lean();
@@ -167,7 +173,7 @@ export function createPublicAPIRouter() {
       filter.status = req.query.status;
     }
     try {
-      const rows = await PurchaseRequest.find(filter)
+      const rows = await purchaseRequestModel.find(filter)
         .sort({ _id: 1 }).limit(limit)
         .select('_id inventoryItemId supplierId sku itemName quantity orderedQuantity receivedQuantity unitCost totalCost currency status createdAt updatedAt reviewedBy reviewedAt orderedAt receivedAt')
         .lean();
