@@ -496,6 +496,32 @@
               }
             }
           }
+        },
+        {
+          "name": "Transition purchase request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/purchase-requests/{{purchaseRequestId}}/transition",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ordered\",\n  \"orderedQuantity\": 5,\n  \"note\": \"Sample order transition; use an approved test request\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ]
     }

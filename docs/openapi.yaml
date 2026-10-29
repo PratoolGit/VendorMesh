@@ -296,6 +296,34 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/purchase-requests/{id}/transition:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Mark an approved request ordered, record receipts, or cancel (role-limited)
+      description: |
+        Ordered/cancelled transitions require owner/admin. Recording partial or complete goods receipt
+        is allowed for workspace staff as well. receivedQuantity is cumulative, and a request can be
+        marked received only when the full orderedQuantity has been recorded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ordered, partially_received, received, cancelled] }
+                orderedQuantity: { type: integer, minimum: 1, maximum: 1000000 }
+                receivedQuantity: { type: integer, minimum: 1, maximum: 1000000 }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Purchase request workflow state updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/workspace/recommendations:
     get:
       tags: [Intelligence]
@@ -453,9 +481,15 @@ components:
         itemName: { type: string }
         sku: { type: string }
         quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
         unitCost: { type: number }
         totalCost: { type: number }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
-        status: { type: string, enum: [pending, approved, rejected, ordered, cancelled] }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
         rationale: { type: string }
         createdAt: { type: string, format: date-time }

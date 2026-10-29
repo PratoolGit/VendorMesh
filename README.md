@@ -1,6 +1,6 @@
 # VendorMesh
 
-**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
+**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, ordered/partial/complete receipt tracking, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
 
 ## Site
 

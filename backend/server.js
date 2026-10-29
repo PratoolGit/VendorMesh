@@ -366,7 +366,7 @@ app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requ
 
   // Compare-and-set the previous status to prevent concurrent transitions from winning twice.
   const updated = await PurchaseRequest.findOneAndUpdate(
-    { _id: req.params.id, ...workspace(req), status: request.status },
+    { _id: req.params.id, ...workspace(req), status: request.status, updatedAt: request.updatedAt },
     {
       $set: validated.patch,
       $push: { statusHistory: { $each: [validated.history], $slice: -50 } }
@@ -374,7 +374,8 @@ app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requ
     { new: true, runValidators: true }
   ).lean();
   if (!updated) return res.status(409).json({ error: 'This purchase request changed while you were updating it. Refresh and try again.' });
-  req.auditAction = 'purchase.' + validated.patch.status;
+  const auditStatus = validated.patch.status === 'partially_received' ? 'receiving' : validated.patch.status;
+  req.auditAction = 'purchase.' + auditStatus;
   res.json(updated);
 }));
 
