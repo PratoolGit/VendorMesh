@@ -11,6 +11,9 @@ import crypto from 'node:crypto';
 import Transaction from './models/Transaction.js';
 import User from './models/User.js';
 import Company from './models/Company.js';
+import InventoryItem from './models/InventoryItem.js';
+import Supplier from './models/Supplier.js';
+import PurchaseRequest from './models/PurchaseRequest.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import * as paypal from './services/paypalService.js';
 import { runInventoryAgent, getInventory, getTreasury } from './services/agent.js';
@@ -99,7 +102,7 @@ app.post('/api/auth/register', wrap(async (req, res) => {
       company: { id: String(company._id), name: company.name, slug: company.slug, role: 'owner' }
     });
   } catch (err) {
-    await User.deleteOne({ _id: user._id }).catch(() => {});
+    if (user?._id) await User.deleteOne({ _id: user._id }).catch(() => {});
     if (err.code === 11000) return res.status(409).json({ error: 'An account with this email already exists.' });
     throw err;
   }
@@ -132,6 +135,162 @@ app.get('/api/auth/me', requireSession, wrap(async (req, res) => {
   const company = await Company.findById(req.session.companyId).lean();
   if (!company) return res.status(401).json({ error: 'Session workspace is no longer available.' });
   return res.json({ user: { id: String(user._id), name: user.name, email: user.email }, company: { id: String(company._id), name: company.name, slug: company.slug, role: membership.role } });
+}));
+
+
+/* ----------------------- Tenant-scoped procurement workspace ----------------------- */
+
+function requireWorkspaceRole(...roles) {
+  return (req, res, next) => {
+    if (!req.session) return res.status(401).json({ error: 'Sign in required.' });
+    if (roles.length && !roles.includes(req.session.role)) return res.status(403).json({ error: 'Your role cannot perform this action.' });
+    next();
+  };
+}
+
+const workspace = (req) => ({ companyId: req.session.companyId });
+const cleanText = (value, max = 180) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+
+app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
+  const scope = workspace(req);
+  const [inventoryCount, supplierCount, pendingApprovals, stockStats, recentRequests] = await Promise.all([
+    InventoryItem.countDocuments(scope),
+    Supplier.countDocuments({ ...scope, active: true }),
+    PurchaseRequest.countDocuments({ ...scope, status: 'pending' }),
+    InventoryItem.aggregate([
+      { $match: { companyId: new mongoose.Types.ObjectId(req.session.companyId) } },
+      { $group: { _id: null, totalUnits: { $sum: '$onHand' }, lowStock: { $sum: { $cond: [{ $lte: ['$onHand', '$reorderPoint'] }, 1, 0] } }, inventoryValue: { $sum: { $multiply: ['$onHand', '$unitCost'] } } } }
+    ]),
+    PurchaseRequest.find(scope).sort({ createdAt: -1 }).limit(8).lean()
+  ]);
+  res.json({ inventoryCount, supplierCount, pendingApprovals, ...(stockStats[0] || { totalUnits: 0, lowStock: 0, inventoryValue: 0 }), recentRequests });
+}));
+
+app.get('/api/workspace/inventory', requireSession, wrap(async (req, res) => {
+  const items = await InventoryItem.find(workspace(req)).sort({ updatedAt: -1 }).limit(1000).lean();
+  res.json(items.map((i) => ({ ...i, lowStock: i.onHand <= i.reorderPoint, daysOfCover: i.dailyDemand > 0 ? Math.round((i.onHand / i.dailyDemand) * 10) / 10 : null })));
+}));
+
+app.post('/api/workspace/inventory', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  const sku = cleanText(req.body?.sku, 80).toUpperCase();
+  const name = cleanText(req.body?.name, 180);
+  const onHand = Number(req.body?.onHand);
+  const reorderPoint = Number(req.body?.reorderPoint);
+  const unitCost = Number(req.body?.unitCost);
+  const dailyDemand = req.body?.dailyDemand === undefined || req.body?.dailyDemand === '' ? 0 : Number(req.body.dailyDemand);
+  if (!sku || !name || ![onHand, reorderPoint, unitCost, dailyDemand].every(Number.isFinite) || [onHand, reorderPoint, unitCost, dailyDemand].some((n) => n < 0)) return res.status(400).json({ error: 'Provide SKU, name, and non-negative numeric inventory values.' });
+  try {
+    const item = await InventoryItem.create({ ...workspace(req), sku, name, onHand, reorderPoint, unitCost, dailyDemand });
+    res.status(201).json(item);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'That SKU already exists in this workspace.' });
+    throw err;
+  }
+}));
+
+app.patch('/api/workspace/inventory/:id', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory item id.' });
+  const patch = {};
+  for (const key of ['name', 'sku']) if (req.body?.[key] !== undefined) patch[key] = cleanText(req.body[key], key === 'sku' ? 80 : 180);
+  if (patch.sku) patch.sku = patch.sku.toUpperCase();
+  for (const key of ['onHand', 'reorderPoint', 'unitCost', 'dailyDemand']) {
+    if (req.body?.[key] !== undefined) {
+      const n = Number(req.body[key]);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ error: `${key} must be a non-negative number.` });
+      patch[key] = n;
+    }
+  }
+  const item = await InventoryItem.findOneAndUpdate({ _id: req.params.id, ...workspace(req) }, { $set: patch }, { new: true, runValidators: true }).lean();
+  if (!item) return res.status(404).json({ error: 'Inventory item not found in this workspace.' });
+  res.json(item);
+}));
+
+app.delete('/api/workspace/inventory/:id', requireSession, requireWorkspaceRole('owner', 'admin'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory item id.' });
+  const item = await InventoryItem.findOneAndDelete({ _id: req.params.id, ...workspace(req) });
+  if (!item) return res.status(404).json({ error: 'Inventory item not found in this workspace.' });
+  res.sendStatus(204);
+}));
+
+app.get('/api/workspace/suppliers', requireSession, wrap(async (req, res) => {
+  res.json(await Supplier.find(workspace(req)).sort({ name: 1 }).limit(1000).lean());
+}));
+
+app.post('/api/workspace/suppliers', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  const name = cleanText(req.body?.name, 180);
+  const email = cleanText(req.body?.email, 254).toLowerCase();
+  const leadTimeDays = Number(req.body?.leadTimeDays ?? 7);
+  const reliabilityScore = Number(req.body?.reliabilityScore ?? 80);
+  if (name.length < 2 || !Number.isFinite(leadTimeDays) || leadTimeDays < 0 || leadTimeDays > 3650 || !Number.isFinite(reliabilityScore) || reliabilityScore < 0 || reliabilityScore > 100) return res.status(400).json({ error: 'Enter a supplier name, valid lead time, and reliability score from 0 to 100.' });
+  const supplier = await Supplier.create({ ...workspace(req), name, email, leadTimeDays, reliabilityScore, paymentTerms: cleanText(req.body?.paymentTerms, 120) || 'Net 30', notes: cleanText(req.body?.notes, 2000) });
+  res.status(201).json(supplier);
+}));
+
+app.patch('/api/workspace/suppliers/:id', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid supplier id.' });
+  const patch = {};
+  for (const [input, field, max] of [['name','name',180],['email','email',254],['paymentTerms','paymentTerms',120],['notes','notes',2000]]) {
+    if (req.body?.[input] !== undefined) patch[field] = cleanText(req.body[input], max);
+  }
+  if (patch.email) patch.email = patch.email.toLowerCase();
+  for (const [input, field, min, max] of [['leadTimeDays','leadTimeDays',0,3650],['reliabilityScore','reliabilityScore',0,100]]) {
+    if (req.body?.[input] !== undefined) {
+      const n = Number(req.body[input]);
+      if (!Number.isFinite(n) || n < min || n > max) return res.status(400).json({ error: `${input} is outside the allowed range.` });
+      patch[field] = n;
+    }
+  }
+  if (req.body?.active !== undefined) patch.active = Boolean(req.body.active);
+  const supplier = await Supplier.findOneAndUpdate({ _id: req.params.id, ...workspace(req) }, { $set: patch }, { new: true, runValidators: true }).lean();
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found in this workspace.' });
+  res.json(supplier);
+}));
+
+app.get('/api/workspace/purchase-requests', requireSession, wrap(async (req, res) => {
+  res.json(await PurchaseRequest.find(workspace(req)).sort({ createdAt: -1 }).limit(500).populate('supplierId', 'name email').lean());
+}));
+
+app.post('/api/workspace/purchase-requests', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.body?.inventoryItemId) || !mongoose.isValidObjectId(req.body?.supplierId)) return res.status(400).json({ error: 'Choose a valid inventory item and supplier.' });
+  const quantity = Number(req.body?.quantity);
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000000) return res.status(400).json({ error: 'Quantity must be a whole number between 1 and 1,000,000.' });
+  const scope = workspace(req);
+  const [item, supplier, company] = await Promise.all([
+    InventoryItem.findOne({ _id: req.body.inventoryItemId, ...scope }).lean(),
+    Supplier.findOne({ _id: req.body.supplierId, ...scope, active: true }).lean(),
+    Company.findById(req.session.companyId).lean()
+  ]);
+  if (!item || !supplier || !company) return res.status(404).json({ error: 'Inventory item, active supplier, or workspace not found.' });
+  const unitCost = Number(req.body?.unitCost ?? item.unitCost);
+  if (!Number.isFinite(unitCost) || unitCost < 0 || unitCost > 100000000) return res.status(400).json({ error: 'Enter a valid non-negative unit cost.' });
+  const totalCost = Math.round(unitCost * quantity * 100) / 100;
+  const limit = Number(company.settings?.maxSinglePayment ?? process.env.MAX_SINGLE_PAYMENT ?? 15000);
+  const status = totalCost > limit ? 'pending' : 'pending';
+  const request = await PurchaseRequest.create({
+    ...scope, createdBy: req.session.sub, inventoryItemId: item._id, supplierId: supplier._id,
+    sku: item.sku, itemName: item.name, quantity, unitCost, totalCost,
+    currency: company.currency || 'USD', status,
+    rationale: cleanText(req.body?.rationale, 2000)
+  });
+  res.status(201).json({ ...request.toObject(), policy: { maxSinglePayment: limit, exceedsSinglePaymentLimit: totalCost > limit, approvalRequired: true } });
+}));
+
+app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireWorkspaceRole('owner', 'admin'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid purchase request id.' });
+  const decision = req.body?.decision;
+  if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'Decision must be approved or rejected.' });
+  const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) });
+  if (!request) return res.status(404).json({ error: 'Purchase request not found in this workspace.' });
+  if (request.status !== 'pending') return res.status(409).json({ error: 'Only pending requests can be reviewed.' });
+  const company = await Company.findById(req.session.companyId).lean();
+  const max = Number(company?.settings?.maxSinglePayment ?? process.env.MAX_SINGLE_PAYMENT ?? 15000);
+  if (decision === 'approved' && request.totalCost > max) return res.status(409).json({ error: 'This request exceeds the company single-purchase limit. Update the limit through an authorized financial-controls workflow before approving.' });
+  request.status = decision;
+  request.reviewedBy = req.session.sub;
+  request.reviewedAt = new Date();
+  request.reviewNote = cleanText(req.body?.note, 1000);
+  await request.save();
+  res.json(request);
 }));
 
 /* ---------------------------------- Read API --------------------------------- */
