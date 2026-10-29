@@ -124,7 +124,13 @@ function geminiHistory(messages) {
   return out;
 }
 
-async function timedFetch(url, options, timeoutMs = 60000) {
+function configuredTimeout(envName, fallback = 60000) {
+  const value = Number(process.env[envName]);
+  // Accept sane operational limits only; invalid values fall back instead of disabling timeouts.
+  return Number.isInteger(value) && value >= 5000 && value <= 180000 ? value : fallback;
+}
+
+async function timedFetch(url, options, timeoutMs = configuredTimeout('AI_REQUEST_TIMEOUT_MS')) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try { return await fetch(url, { ...options, signal: controller.signal }); }
@@ -247,20 +253,20 @@ export async function testAIProvider({ provider, model, apiKey }) {
     const res = await timedFetch(PROVIDERS.anthropic.keyUrl, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': apiKey.trim(), 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model: model.trim(), max_tokens: 8, messages: [{ role: 'user', content: 'Reply with OK.' }] }),
-      }, 20000);
+      }, configuredTimeout('AI_TEST_TIMEOUT_MS'));
     await readResponse(res, 'Anthropic');
   } else if (provider === 'openai') {
     const res = await timedFetch(PROVIDERS.openai.keyUrl, {
       method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${apiKey.trim()}` },
       body: JSON.stringify({ model: model.trim(), max_tokens: 8, messages: [{ role: 'user', content: 'Reply with OK.' }] }),
-      }, 20000);
+      }, configuredTimeout('AI_TEST_TIMEOUT_MS'));
     await readResponse(res, 'OpenAI');
   } else {
     const url = `${PROVIDERS.gemini.keyUrl}/${encodeURIComponent(model.trim())}:generateContent`;
     const res = await timedFetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey.trim() },
       body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply with OK.' }] }], generationConfig: { maxOutputTokens: 8 } }),
-      }, 20000);
+      }, configuredTimeout('AI_TEST_TIMEOUT_MS'));
     await readResponse(res, 'Gemini');
   }
   return { ok: true, message: `Successfully reached ${provider} using model ${model.trim()}.` };

@@ -9,6 +9,9 @@ import cron from 'node-cron';
 import crypto from 'node:crypto';
 
 import Transaction from './models/Transaction.js';
+import User from './models/User.js';
+import Company from './models/Company.js';
+import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import * as paypal from './services/paypalService.js';
 import { runInventoryAgent, getInventory, getTreasury } from './services/agent.js';
 import { getPublicAIConfig, saveAIConfig, testAIProvider } from './services/aiProvider.js';
@@ -53,6 +56,83 @@ function requireAdmin(req, res, next) {
   if (!hasValidAdminToken(req)) return res.status(401).json({ error: 'Admin token required. Set ADMIN_API_TOKEN on the server and enter it in the dashboard.' });
   return next();
 }
+
+/* ------------------------------ Account identity ------------------------------ */
+
+function requireSession(req, res, next) {
+  const header = req.get('authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  let claims;
+  try { claims = verifySessionToken(token); } catch (err) {
+    return res.status(503).json({ error: err.message });
+  }
+  if (!claims) return res.status(401).json({ error: 'Sign in required or session expired.' });
+  req.session = claims;
+  return next();
+}
+
+function makeCompanySlug(name) {
+  const base = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 45) || 'workspace';
+  return `${base}-${crypto.randomBytes(3).toString('hex')}`;
+}
+
+app.post('/api/auth/register', wrap(async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = req.body?.password;
+  const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : '';
+  if (name.length < 2 || name.length > 120) return res.status(400).json({ error: 'Enter your name (2–120 characters).' });
+  const emailParts = email.split('@');
+  if (email.length > 254 || email.includes(' ') || emailParts.length !== 2 || !emailParts[0] || !emailParts[1]?.includes('.') || emailParts[1].startsWith('.') || emailParts[1].endsWith('.')) return res.status(400).json({ error: 'Enter a valid email address.' });
+  if (companyName.length < 2 || companyName.length > 120) return res.status(400).json({ error: 'Company name must be 2–120 characters.' });
+  const passwordHash = await hashPassword(password);
+  let user;
+  try {
+    user = await User.create({ name, email, passwordHash, memberships: [] });
+    const company = await Company.create({ name: companyName, slug: makeCompanySlug(companyName), ownerUserId: user._id });
+    user.memberships.push({ companyId: company._id, role: 'owner', status: 'active' });
+    await user.save();
+    const session = issueSessionToken(user, company._id, 'owner');
+    return res.status(201).json({
+      token: session.token, expiresIn: session.expiresIn,
+      user: { id: String(user._id), name: user.name, email: user.email },
+      company: { id: String(company._id), name: company.name, slug: company.slug, role: 'owner' }
+    });
+  } catch (err) {
+    await User.deleteOne({ _id: user._id }).catch(() => {});
+    if (err.code === 11000) return res.status(409).json({ error: 'An account with this email already exists.' });
+    throw err;
+  }
+}));
+
+app.post('/api/auth/login', wrap(async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = req.body?.password;
+  const user = await User.findOne({ email, disabled: false }).select('+passwordHash');
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+  const membership = user.memberships.find((m) => m.status === 'active');
+  if (!membership) return res.status(403).json({ error: 'Your account has no active company workspace.' });
+  const company = await Company.findById(membership.companyId).lean();
+  if (!company) return res.status(403).json({ error: 'Your company workspace is unavailable.' });
+  const session = issueSessionToken(user, company._id, membership.role);
+  return res.json({
+    token: session.token, expiresIn: session.expiresIn,
+    user: { id: String(user._id), name: user.name, email: user.email },
+    company: { id: String(company._id), name: company.name, slug: company.slug, role: membership.role }
+  });
+}));
+
+app.get('/api/auth/me', requireSession, wrap(async (req, res) => {
+  const user = await User.findById(req.session.sub).select('name email memberships').lean();
+  if (!user) return res.status(401).json({ error: 'Session user is no longer available.' });
+  const membership = user.memberships.find((m) => String(m.companyId) === String(req.session.companyId) && m.status === 'active');
+  if (!membership) return res.status(403).json({ error: 'No active membership for this workspace.' });
+  const company = await Company.findById(req.session.companyId).lean();
+  if (!company) return res.status(401).json({ error: 'Session workspace is no longer available.' });
+  return res.json({ user: { id: String(user._id), name: user.name, email: user.email }, company: { id: String(company._id), name: company.name, slug: company.slug, role: membership.role } });
+}));
 
 /* ---------------------------------- Read API --------------------------------- */
 
