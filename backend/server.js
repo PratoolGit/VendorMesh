@@ -14,6 +14,7 @@ import Company from './models/Company.js';
 import InventoryItem from './models/InventoryItem.js';
 import Supplier from './models/Supplier.js';
 import PurchaseRequest from './models/PurchaseRequest.js';
+import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import * as paypal from './services/paypalService.js';
@@ -79,6 +80,26 @@ async function requireSession(req, res, next) {
     const membership = user.memberships.find((m) => String(m.companyId) === String(claims.companyId) && m.status === 'active');
     if (!membership) return res.status(403).json({ error: 'No active membership for this workspace.' });
     req.session = { ...claims, role: membership.role };
+
+    // Record authenticated write attempts without storing request bodies, credentials,
+    // prompts, invoice contents, or other potentially sensitive payloads.
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      res.once('finish', () => {
+        const resource = String(req.originalUrl || req.path).split('?')[0].slice(0, 240);
+        const requestId = String(req.get('x-request-id') || '').replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 100);
+        AuditLog.create({
+          companyId: claims.companyId,
+          actorUserId: claims.sub,
+          actorRole: membership.role,
+          action: req.method,
+          resource,
+          statusCode: res.statusCode,
+          requestId
+        }).catch((auditError) => {
+          console.error('[audit] failed to append workspace event:', auditError.message);
+        });
+      });
+    }
     return next();
   } catch (err) {
     return next(err);
