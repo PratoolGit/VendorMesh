@@ -1,6 +1,6 @@
 # VendorMesh
 
-**VendorMesh is a procurement and inventory workspace with a separate experimental treasury/payment agent.** The workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, ordered/partial/complete receipt tracking, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, advisory pricing scenarios, and an owner/admin-only AI copilot with per-workspace credentials and usage limits. Legacy treasury/payment endpoints still use a separate operator-token API.
+**VendorMesh is a procurement and inventory workspace with a separate experimental treasury/payment agent.** The workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, ordered/partial/complete receipt tracking, audit history, transparent daily-demand inventory forecasts, read-only procurement review signals, advisory pricing scenarios, an owner/admin-only AI copilot with per-workspace credentials and usage limits, and read-only scoped API keys for external reporting. Legacy treasury/payment endpoints still use a separate operator-token API.
 
 ## Site
 
@@ -231,8 +231,27 @@ MIT. See [LICENSE](LICENSE).
 - [Workspace API OpenAPI specification](docs/openapi.yaml)
 - [Postman collection](postman/VendorMesh.postman_collection.json) — includes the existing legacy operator routes and a workspace Bearer-session folder. Use synthetic test data and a unique test email.
 
-The OpenAPI file documents the current unversioned workspace API; public API keys, universal pagination/filtering, and separately versioned /api/v1 routes are not implemented yet.
+The OpenAPI file covers the workspace session API and the separate read-only `/api/v1` inventory, supplier and purchase-request endpoints. Public API write scopes and financial actions are intentionally not available.
 
 - AI quota configuration: `AI_MAX_REQUESTS_PER_DAY` defaults to 25 provider tests/advisory questions per workspace UTC day; accepted values are 1–500. This limits app requests, not the provider's price or billing plan. Token counts are displayed only when the provider returns usage metadata.
 
 - OpenAPI and Postman now also cover the owner/admin-only workspace AI settings, credential test, usage, and advisory ask endpoints. The sample Postman AI key variable is blank; only set it in your private local environment, not in a shared collection.
+
+
+## Read-only public API v1
+
+Workspace owners/admins can create scoped API tokens under **API access**. The full token is shown only at creation time; it is stored as a SHA-256 hash and can be revoked or allowed to expire (1–365 days). Put the token in your integration's secret manager, never in a frontend bundle or public repository.
+
+Send it as a bearer token:
+
+```http
+Authorization: Bearer vmk_<key-id>.<secret>
+```
+
+Supported endpoints:
+
+- `GET /api/v1/inventory?limit=50&lowStock=true`
+- `GET /api/v1/suppliers?limit=50&active=true`
+- `GET /api/v1/purchase-requests?limit=50&status=pending`
+
+Responses use `data`, `limit`, and `nextCursor`. Pass the returned cursor as `after` to fetch the next page. Limits are 1–100 records per page. Scopes are `inventory:read`, `suppliers:read`, and `purchasing:read`; API keys cannot write records, approve purchases, or initiate payments. The current rate limiter is process-local and must be replaced with shared/edge enforcement before multi-instance scaling.

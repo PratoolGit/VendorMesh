@@ -3,9 +3,9 @@ info:
   title: VendorMesh Workspace API
   version: 0.2.0
   description: |
-    Documents the current unversioned, bearer-session workspace API. Workspace identifiers are
-    derived from the authenticated session, not request bodies. This is not yet a third-party
-    API-key product. Legacy operator-token AI/treasury/payment routes are intentionally omitted.
+    Documents the authenticated workspace API plus a separately versioned, read-only API-key surface
+    for inventory, suppliers and purchase requests. Workspace identifiers are derived from the key or
+    signed-in session, not request bodies. Legacy operator-token AI/treasury/payment routes are omitted.
 servers:
   - url: http://localhost:5000
     description: Local backend
@@ -502,12 +502,156 @@ paths:
       responses:
         '200': { description: Advisory scenarios and assumptions }
         '400': { $ref: '#/components/responses/BadRequest' }
+  /api/workspace/api-keys:
+    get:
+      tags: [Workspace]
+      summary: List API key metadata for this workspace (owner/admin)
+      responses:
+        '200':
+          description: List of keys without token secrets or hashes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys: { type: array, items: { $ref: '#/components/schemas/WorkspaceAPIKey' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Workspace]
+      summary: Create a read-only workspace API key (owner/admin)
+      description: The full token is returned once only. Store it in a secret manager; the database stores only its SHA-256 hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 80 }
+                scopes:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [inventory:read, suppliers:read, purchasing:read] }
+                expiresInDays: { type: integer, minimum: 1, maximum: 365, default: 90 }
+      responses:
+        '201':
+          description: Key created; this response is the only place the full token is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      prefix: { type: string }
+                      token: { type: string, writeOnly: true }
+                      scopes: { type: array, items: { type: string } }
+                      createdAt: { type: string, format: date-time }
+                      expiresAt: { type: string, format: date-time }
+                  warning: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/api-keys/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    delete:
+      tags: [Workspace]
+      summary: Revoke an API key for this workspace (owner/admin)
+      responses:
+        '200': { description: API key revoked }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Inventory]
+      summary: List workspace inventory using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          description: Object ID cursor returned by nextCursor.
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: sku
+          description: Exact SKU match (case-normalized).
+          schema: { type: string, maxLength: 80 }
+        - in: query
+          name: lowStock
+          schema: { type: boolean }
+      responses:
+        '200': { description: Page of tenant-scoped inventory plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/suppliers:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Suppliers]
+      summary: List workspace suppliers using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: active
+          schema: { type: boolean }
+        - in: query
+          name: name
+          description: Exact supplier name match.
+          schema: { type: string, maxLength: 180 }
+      responses:
+        '200': { description: Page of tenant-scoped suppliers plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/purchase-requests:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Purchasing]
+      summary: List workspace purchase requests using a read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+      responses:
+        '200': { description: Page of tenant-scoped purchase request metadata plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 components:
   securitySchemes:
     BearerSession:
       type: http
       scheme: bearer
       bearerFormat: HMAC-signed VendorMesh session
+    WorkspaceAPIKeyBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: vmk workspace API key
   parameters:
     ObjectId:
       name: id
@@ -541,11 +685,22 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     RateLimited:
-      description: Too many registration/login requests
+      description: Rate limit exceeded for this process or workspace quota
       headers:
         Retry-After:
           schema: { type: integer }
   schemas:
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
     ErrorResponse:
       type: object
       properties:

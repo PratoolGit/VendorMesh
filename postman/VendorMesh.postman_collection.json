@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "VendorMesh API",
-    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection. Workspace routes use workspaceToken (Bearer token) from registration/login. Set baseUrl and never store credentials in a shared collection. Workspace AI settings and copilot endpoints are owner/admin-only, use the signed-in Bearer session, and count provider tests/questions against the workspace daily quota. Set workspaceAIKey only in your private local Postman environment.",
+    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection. Workspace routes use workspaceToken (Bearer token) from registration/login. Set baseUrl and never store credentials in a shared collection. Workspace AI settings and copilot endpoints are owner/admin-only, use the signed-in Bearer session, and count provider tests/questions against the workspace daily quota. Set workspaceAIKey only in your private local Postman environment. Public /api/v1 endpoints are read-only and use a scoped Workspace API key, not the workspace session token. Store the secret only in a private Postman environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -64,6 +64,14 @@
     {
       "key": "workspaceAIModel",
       "value": "gpt-4o-mini"
+    },
+    {
+      "key": "workspaceAPIKey",
+      "value": ""
+    },
+    {
+      "key": "workspaceAPIKeyId",
+      "value": ""
     }
   ],
   "item": [
@@ -637,6 +645,111 @@
                 }
               }
             }
+          }
+        },
+        {
+          "name": "List API keys (owner/admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/api-keys"
+          }
+        },
+        {
+          "name": "Create read-only API key (copy token once)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/api-keys",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman reporting\",\n  \"scopes\": [\n    \"inventory:read\",\n    \"suppliers:read\",\n    \"purchasing:read\"\n  ],\n  \"expiresInDays\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Revoke API key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/api-keys/{{workspaceAPIKeyId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public API v1 (read-only API key)",
+      "description": "Set workspaceAPIKey in a PRIVATE Postman environment. The workspace session Bearer token is not accepted here. Only read scopes exist; these endpoints cannot modify data or approve purchases.",
+      "item": [
+        {
+          "name": "Inventory (optional low-stock filter)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceAPIKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/inventory?limit=50&lowStock=true"
+          }
+        },
+        {
+          "name": "Suppliers (active only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceAPIKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/suppliers?limit=50&active=true"
+          }
+        },
+        {
+          "name": "Purchase requests (pending)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceAPIKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/purchase-requests?limit=50&status=pending"
           }
         }
       ]
