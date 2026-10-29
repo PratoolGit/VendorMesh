@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import InventoryItem from '../models/InventoryItem.js';
 import Supplier from '../models/Supplier.js';
 import { forecastInventory } from '../services/inventoryForecast.js';
+import { rankSuppliers } from '../services/supplierMatching.js';
 
 export function createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }) {
   const router = express.Router();
@@ -17,11 +18,14 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
         InventoryItem.find(scope).sort({ name: 1 }).limit(1000).lean(),
         Supplier.find({ ...scope, active: true }).sort({ reliabilityScore: -1, leadTimeDays: 1 }).limit(1000).lean()
       ]);
-      const supplierById = new Map(suppliers.map((supplier) => [String(supplier._id), supplier]));
+      const rankedSuppliers = rankSuppliers(suppliers);
+      const validSuppliers = rankedSuppliers.map((entry) => entry.supplier);
+      const supplierById = new Map(validSuppliers.map((supplier) => [String(supplier._id), supplier]));
       const recommendations = items.map((item) => {
         const daysOfCover = item.dailyDemand > 0 ? item.onHand / item.dailyDemand : null;
         const linkedSupplier = item.supplierId ? supplierById.get(String(item.supplierId)) : null;
-        const supplier = linkedSupplier || suppliers[0] || null;
+        const supplier = linkedSupplier || validSuppliers[0] || null;
+        const selectedRanking = supplier ? rankedSuppliers.find((entry) => String(entry.supplier._id) === String(supplier._id))?.ranking : null;
         const leadTimeDays = supplier?.leadTimeDays ?? null;
         const targetDays = leadTimeDays === null ? 7 : leadTimeDays + 3;
         const targetStock = item.dailyDemand > 0 ? Math.ceil(item.dailyDemand * targetDays) : item.reorderPoint;
@@ -41,7 +45,7 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
           priority: lowStock || (daysOfCover !== null && leadTimeDays !== null && daysOfCover <= leadTimeDays) ? 'high' : shouldReplenish ? 'medium' : 'normal',
           supplier: supplier ? { id: String(supplier._id), name: supplier.name, leadTimeDays: supplier.leadTimeDays, reliabilityScore: supplier.reliabilityScore } : null,
           supplierLinked: Boolean(linkedSupplier),
-          supplierMatch: supplier ? { method: 'rules-based', score: Math.round((Number(supplier.reliabilityScore || 0) * 0.7) + (Math.max(0, 100 - Number(supplier.leadTimeDays || 0) / 3.65) * 0.3)), explanation: linkedSupplier ? 'Existing active supplier link.' : 'Best available active supplier by reliability (70%) and lead-time score (30%); review before use.' } : null,
+          supplierMatch: supplier ? { method: 'rules-based', score: selectedRanking?.score ?? null, reliabilityWeight: 0.7, leadTimeWeight: 0.3, leadTimeScore: selectedRanking?.leadTimeScore ?? null, explanation: linkedSupplier ? 'Existing active supplier link; score shows the stored reliability and lead-time factors.' : 'Highest weighted score among active suppliers with valid reliability and lead-time data; review before use.' } : null,
           reasons, action: shouldReplenish ? 'review_purchase_request' : 'monitor'
         };
       }).filter((item) => item.priority !== 'normal')
