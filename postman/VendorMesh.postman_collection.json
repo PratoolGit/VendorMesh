@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "VendorMesh API",
-    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection. Workspace routes use workspaceToken (Bearer token) from registration/login. Set baseUrl and never store credentials in a shared collection.",
+    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection. Workspace routes use workspaceToken (Bearer token) from registration/login. Set baseUrl and never store credentials in a shared collection. Workspace AI settings and copilot endpoints are owner/admin-only, use the signed-in Bearer session, and count provider tests/questions against the workspace daily quota. Set workspaceAIKey only in your private local Postman environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -52,6 +52,18 @@
     {
       "key": "purchaseRequestId",
       "value": ""
+    },
+    {
+      "key": "workspaceAIKey",
+      "value": ""
+    },
+    {
+      "key": "workspaceAIProvider",
+      "value": "openai"
+    },
+    {
+      "key": "workspaceAIModel",
+      "value": "gpt-4o-mini"
     }
   ],
   "item": [
@@ -515,6 +527,110 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"ordered\",\n  \"orderedQuantity\": 5,\n  \"note\": \"Sample order transition; use an approved test request\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Workspace AI settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/ai/settings"
+          }
+        },
+        {
+          "name": "Save workspace AI credential",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/ai/settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"{{workspaceAIProvider}}\",\n  \"model\": \"{{workspaceAIModel}}\",\n  \"apiKey\": \"{{workspaceAIKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Test workspace AI credential (counts against quota)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/ai/settings/test",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"{{workspaceAIProvider}}\",\n  \"model\": \"{{workspaceAIModel}}\",\n  \"apiKey\": \"{{workspaceAIKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Workspace AI usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/ai/usage"
+          }
+        },
+        {
+          "name": "Ask workspace copilot (provider request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{workspaceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/workspace/ai/ask",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Summarize the most urgent inventory risks using only the current workspace records. Explain what data I should verify before requesting a purchase.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

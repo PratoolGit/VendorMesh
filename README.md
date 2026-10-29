@@ -234,3 +234,5 @@ MIT. See [LICENSE](LICENSE).
 The OpenAPI file documents the current unversioned workspace API; public API keys, universal pagination/filtering, and separately versioned /api/v1 routes are not implemented yet.
 
 - AI quota configuration: `AI_MAX_REQUESTS_PER_DAY` defaults to 25 provider tests/advisory questions per workspace UTC day; accepted values are 1–500. This limits app requests, not the provider's price or billing plan. Token counts are displayed only when the provider returns usage metadata.
+
+- OpenAPI and Postman now also cover the owner/admin-only workspace AI settings, credential test, usage, and advisory ask endpoints. The sample Postman AI key variable is blank; only set it in your private local environment, not in a shared collection.
