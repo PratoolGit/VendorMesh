@@ -1,6 +1,6 @@
 # VendorMesh
 
-**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
+**VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, transparent daily-demand inventory forecasts, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
 
 > **Hackathon/demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
 

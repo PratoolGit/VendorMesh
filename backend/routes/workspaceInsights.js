@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import InventoryItem from '../models/InventoryItem.js';
 import Supplier from '../models/Supplier.js';
+import { forecastInventory } from '../services/inventoryForecast.js';
 
 export function createWorkspaceInsightsRouter({ requireSession, requireWorkspaceRole }) {
   const router = express.Router();
@@ -47,6 +48,23 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
         .sort((a, b) => ({ high: 0, medium: 1 }[a.priority] - { high: 0, medium: 1 }[b.priority] || (b.suggestedQuantity - a.suggestedQuantity)));
       res.json({ generatedAt: new Date().toISOString(), method: 'rules-based', autoOrdersCreated: 0, recommendations });
     } catch (error) { next(error); }
+  });
+
+  router.get('/forecast', requireSession, async (req, res, next) => {
+    try {
+      const scope = companyScope(req);
+      const [items, suppliers] = await Promise.all([
+        InventoryItem.find(scope).sort({ name: 1 }).limit(1000).lean(),
+        Supplier.find({ ...scope, active: true }).select('_id name leadTimeDays').limit(1000).lean()
+      ]);
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        method: 'configured daily-demand baseline',
+        historicalSalesUsed: false,
+        limitation: 'Estimates use the daily demand value configured on each inventory record. No historical sales series or seasonality model is available in this baseline.',
+        forecasts: forecastInventory(items, suppliers)
+      });
+    } catch (error) { return next(error); }
   });
 
   router.get('/team', requireSession, requireWorkspaceRole('owner', 'admin'), async (req, res, next) => {
