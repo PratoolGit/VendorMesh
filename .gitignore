@@ -3,7 +3,6 @@ node_modules/
 **/node_modules/
 dist/
 coverage/
-.vercel/
 
 # Local environment and secret files
 .env
