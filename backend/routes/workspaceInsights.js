@@ -19,7 +19,8 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
       const supplierById = new Map(suppliers.map((supplier) => [String(supplier._id), supplier]));
       const recommendations = items.map((item) => {
         const daysOfCover = item.dailyDemand > 0 ? item.onHand / item.dailyDemand : null;
-        const supplier = item.supplierId ? supplierById.get(String(item.supplierId)) : null;
+        const linkedSupplier = item.supplierId ? supplierById.get(String(item.supplierId)) : null;
+        const supplier = linkedSupplier || suppliers[0] || null;
         const leadTimeDays = supplier?.leadTimeDays ?? null;
         const targetDays = leadTimeDays === null ? 7 : leadTimeDays + 3;
         const targetStock = item.dailyDemand > 0 ? Math.ceil(item.dailyDemand * targetDays) : item.reorderPoint;
@@ -38,6 +39,8 @@ export function createWorkspaceInsightsRouter({ requireSession, requireWorkspace
           suggestedQuantity: shouldReplenish ? shortage || Math.max(1, item.reorderPoint - item.onHand + 1) : 0,
           priority: lowStock || (daysOfCover !== null && leadTimeDays !== null && daysOfCover <= leadTimeDays) ? 'high' : shouldReplenish ? 'medium' : 'normal',
           supplier: supplier ? { id: String(supplier._id), name: supplier.name, leadTimeDays: supplier.leadTimeDays, reliabilityScore: supplier.reliabilityScore } : null,
+          supplierLinked: Boolean(linkedSupplier),
+          supplierMatch: supplier ? { method: 'rules-based', score: Math.round((Number(supplier.reliabilityScore || 0) * 0.7) + (Math.max(0, 100 - Number(supplier.leadTimeDays || 0) / 3.65) * 0.3)), explanation: linkedSupplier ? 'Existing active supplier link.' : 'Best available active supplier by reliability (70%) and lead-time score (30%); review before use.' } : null,
           reasons, action: shouldReplenish ? 'review_purchase_request' : 'monitor'
         };
       }).filter((item) => item.priority !== 'normal')
