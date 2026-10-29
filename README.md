@@ -2,6 +2,12 @@
 
 **VendorMesh is a procurement and inventory workspace with an experimental treasury/payment agent.** The current workspace UI supports account registration, workspace-scoped inventory and suppliers, purchase requests and approvals, audit history, transparent daily-demand inventory forecasts, and advisory pricing scenarios. A separate legacy operator-token API serves the AI/treasury/PayPal demo workflows; the two surfaces are not yet unified.
 
+## Site
+
+**Live site:** [Open VendorMesh](https://YOUR-VERCEL-DEPLOYMENT-URL)
+
+Replace the placeholder above with the Production Domain Vercel assigns after the first deployment. A verified live-site URL is not available yet.
+
 > **Hackathon/demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
 
 ## What it does
@@ -215,4 +221,4 @@ MIT. See [LICENSE](LICENSE).
 - The legacy `/api/ai/*`, `/api/transactions`, `/api/treasury`, and `/api/agent/*` routes still use `ADMIN_API_TOKEN`; saved AI provider settings are global rather than company-specific. They must not be exposed as ordinary workspace settings.
 - The audit log's application-level guards are not a substitute for database-level insert-only credentials, retention controls, or an external tamper-resistant archive.
 - Authentication throttling currently uses in-memory per-process buckets. If the API is scaled to multiple instances, use a shared rate-limit store or edge protection.
-- See [the Vercel deployment guide](docs/DEPLOYMENT_VERCEL.md) for deploying the frontend on Vercel while retaining the Express API on Render.
+- Keep multi-instance rate limits in a shared store or enforce them at a trusted edge before scaling the API.
