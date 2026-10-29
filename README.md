@@ -255,3 +255,5 @@ Supported endpoints:
 - `GET /api/v1/purchase-requests?limit=50&status=pending`
 
 Responses use `data`, `limit`, and `nextCursor`. Pass the returned cursor as `after` to fetch the next page. Limits are 1–100 records per page. Scopes are `inventory:read`, `suppliers:read`, and `purchasing:read`; API keys cannot write records, approve purchases, or initiate payments. The current rate limiter is process-local and must be replaced with shared/edge enforcement before multi-instance scaling.
+
+- **Invoice register and reconciliation:** manually capture invoice headers against approved/fulfilled purchase requests, review invoices with discrepancy notes, and view read-only reconciliation signals. Upload/OCR and settlement-ledger reconciliation are not enabled in this release.
