@@ -19,6 +19,7 @@ import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPricingSimulatorRouter } from './routes/pricingSimulator.js';
 import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
+import { validatePurchaseTransition } from './services/purchaseWorkflow.js';
 import { hashPassword, verifyPassword, issueSessionToken, verifySessionToken } from './services/authService.js';
 import { createRateLimiter } from './services/rateLimit.js';
 import * as paypal from './services/paypalService.js';
@@ -322,7 +323,8 @@ app.post('/api/workspace/purchase-requests', requireSession, requireWorkspaceRol
     ...scope, createdBy: req.session.sub, inventoryItemId: item._id, supplierId: supplier._id,
     sku: item.sku, itemName: item.name, quantity, unitCost, totalCost,
     currency: company.currency || 'USD', status,
-    rationale: cleanText(req.body?.rationale, 2000)
+    rationale: cleanText(req.body?.rationale, 2000),
+    statusHistory: [{ status: 'pending', changedBy: req.session.sub, changedAt: new Date(), note: 'Submitted for approval' }]
   });
   req.auditAction = 'purchase.created';
   res.status(201).json({ ...request.toObject(), policy: { maxSinglePayment: limit, exceedsSinglePaymentLimit: totalCost > limit, approvalRequired: true } });
@@ -346,12 +348,34 @@ app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireW
       reviewedBy: req.session.sub,
       reviewedAt: new Date(),
       reviewNote: cleanText(req.body?.note, 1000)
-    } },
+    }, $push: { statusHistory: { $each: [{ status: decision, changedBy: req.session.sub, changedAt: new Date(), note: cleanText(req.body?.note, 500) }], $slice: -50 } } },
     { new: true, runValidators: true }
   );
   if (!reviewed) return res.status(409).json({ error: 'This purchase request was already reviewed. Refresh the workspace and try again.' });
   req.auditAction = decision === 'approved' ? 'purchase.approved' : 'purchase.rejected';
   res.json(reviewed);
+}));
+
+app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid purchase request id.' });
+  const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) }).lean();
+  if (!request) return res.status(404).json({ error: 'Purchase request not found in this workspace.' });
+  const now = new Date();
+  const validated = validatePurchaseTransition({ ...request, actorId: req.session.sub }, req.body, req.session.role, now);
+  if (validated.error) return res.status(validated.status || 400).json({ error: validated.error });
+
+  // Compare-and-set the previous status to prevent concurrent transitions from winning twice.
+  const updated = await PurchaseRequest.findOneAndUpdate(
+    { _id: req.params.id, ...workspace(req), status: request.status },
+    {
+      $set: validated.patch,
+      $push: { statusHistory: { $each: [validated.history], $slice: -50 } }
+    },
+    { new: true, runValidators: true }
+  ).lean();
+  if (!updated) return res.status(409).json({ error: 'This purchase request changed while you were updating it. Refresh and try again.' });
+  req.auditAction = 'purchase.' + validated.patch.status;
+  res.json(updated);
 }));
 
 /* ---------------------------------- Read API --------------------------------- */
