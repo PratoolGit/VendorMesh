@@ -10,7 +10,7 @@ const baseRequest = (overrides = {}) => ({
 });
 
 test('flags pending requests over the configured limit without mutating state', () => {
-  const request = baseRequest({ totalCost: 500 });
+  const request = baseRequest({ totalCost: 500, unitCost: 50 });
   const result = detectWorkspaceAnomalies({
     purchaseRequests: [request],
     inventoryItems: [{ _id: 'item-1', name: 'Printer paper', sku: 'PAPER-01' }],
