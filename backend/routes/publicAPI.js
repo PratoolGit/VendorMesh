@@ -141,7 +141,7 @@ export function createPublicAPIRouter() {
       if (typeof req.query.name !== 'string' || req.query.name.trim().length < 1 || req.query.name.trim().length > 180) {
         return res.status(400).json({ error: 'name filter must be 1–180 characters.' });
       }
-      filter.name = { $regex: '^' + req.query.name.trim().replace(/[.*+?^{}()|[\]\\]/g, '\\$&'), $options: 'i' };
+      filter.name = req.query.name.trim();
     }
     try {
       const rows = await Supplier.find(filter)
