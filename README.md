@@ -4,11 +4,10 @@
 
 ## Site
 
-**Live site:** [Open VendorMesh](https://YOUR-VERCEL-DEPLOYMENT-URL)
+##Live site:## [Open VendorMesh](https://vendor-mesh.vercel.app/)
 
-Replace the placeholder above with the Production Domain Vercel assigns after the first deployment. A verified live-site URL is not available yet.
 
-> **Hackathon/demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
+> **demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
 
 ## What it does
 
