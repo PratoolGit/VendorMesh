@@ -33,6 +33,13 @@ const CLIENT_URL = ORIGINS[0];
 
 const app = express();
 app.disable('x-powered-by');
+
+// Platform probes: liveness does not depend on external services; readiness reflects MongoDB.
+app.get('/health/live', (_req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/health/ready', (_req, res) => {
+  const ready = mongoose.connection.readyState === 1;
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready', database: ready ? 'connected' : 'unavailable' });
+});
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
