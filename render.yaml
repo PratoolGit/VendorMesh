@@ -1,0 +1,55 @@
+# Render Blueprint – New + > Blueprint > select this repo.
+# MongoDB lives on Atlas (free M0 tier); paste its URI when Render prompts for MONGODB_URI.
+services:
+  - type: web
+    name: vendormesh-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_API_TOKEN
+        sync: false
+      - key: AI_SETTINGS_ENCRYPTION_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-20250514
+      - key: PAYPAL_API_BASE
+        value: https://api-m.sandbox.paypal.com
+      # Adjust both URLs if Render assigns different hostnames to your services.
+      - key: PUBLIC_API_URL
+        value: https://vendormesh-api.onrender.com
+      - key: CLIENT_ORIGIN
+        value: https://vendormesh-web.onrender.com
+      - key: INITIAL_BANK_BALANCE
+        value: "25000"
+      - key: MIN_CASH_RESERVE
+        value: "5000"
+      - key: MAX_SINGLE_PAYMENT
+        value: "15000"
+      - key: ENABLE_CRON
+        value: "false"
+
+  - type: web
+    name: vendormesh-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://vendormesh-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

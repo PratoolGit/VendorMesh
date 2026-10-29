@@ -1,0 +1,154 @@
+{
+  "info": {
+    "name": "VendorMesh API",
+    "description": "Sandbox-oriented API checks. Set baseUrl and adminToken in a Postman environment. Never store real credentials in a shared collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "sku",
+      "value": "GAN-100W"
+    },
+    {
+      "key": "provider",
+      "value": "openai"
+    },
+    {
+      "key": "model",
+      "value": "gpt-4o-mini"
+    },
+    {
+      "key": "apiKey",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/health"
+      }
+    },
+    {
+      "name": "Inventory (simulated)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/inventory"
+      }
+    },
+    {
+      "name": "Treasury",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/treasury"
+      }
+    },
+    {
+      "name": "Transactions",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/transactions"
+      }
+    },
+    {
+      "name": "AI settings (protected)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/ai/settings",
+        "header": [
+          {
+            "key": "X-Admin-Token",
+            "value": "{{adminToken}}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Test AI provider (protected)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/test",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Token",
+            "value": "{{adminToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"{{provider}}\",\n  \"model\": \"{{model}}\",\n  \"apiKey\": \"{{apiKey}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Save AI provider (protected)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/settings",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Token",
+            "value": "{{adminToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"{{provider}}\",\n  \"model\": \"{{model}}\",\n  \"apiKey\": \"{{apiKey}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Trigger agent (PayPal Sandbox only)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/agent/trigger",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Admin-Token",
+            "value": "{{adminToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sku\": \"{{sku}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
