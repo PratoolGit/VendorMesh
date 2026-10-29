@@ -4,7 +4,7 @@
 
 ## Site
 
-##Live site:## [Open VendorMesh](https://vendor-mesh.vercel.app/)
+## Live site: [Open VendorMesh](https://vendor-mesh.vercel.app/)
 
 
 > **demo status:** Inventory and supplier quotes are simulated in this repository. PayPal and AI calls are real integrations when configured, but no live supplier/ERP integration is included. Start with PayPal Sandbox. Do not use real money until you have reviewed and secured the application.
