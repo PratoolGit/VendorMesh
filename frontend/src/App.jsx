@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CommandPalette } from './components/ui.jsx';
 import WorkspaceAI from './components/WorkspaceAI.jsx';
 import WorkspaceAPIKeys from './components/WorkspaceAPIKeys.jsx';
 import WorkspaceInvoices from './components/WorkspaceInvoices.jsx';
@@ -58,22 +59,44 @@ function AuthScreen({ onAuthenticated }) {
     finally { setBusy(false); }
   }
   return <main className="auth-shell">
-    <section className="auth-card">
-      <img className="brand-symbol auth-brand-symbol" src="/vendormesh-mark.svg" alt="VendorMesh" />
-      <p className="eyebrow">PROCUREMENT INTELLIGENCE</p>
-      <h1>{mode === 'register' ? 'Run purchasing with clarity.' : 'Welcome back.'}</h1>
-      <p className="muted">One workspace for stock, suppliers and accountable purchasing decisions.</p>
-      <div className="auth-tabs"><button className={mode === 'register' ? 'selected' : ''} onClick={() => { setMode('register'); setError(''); }}>Create workspace</button><button className={mode === 'login' ? 'selected' : ''} onClick={() => { setMode('login'); setError(''); }}>Sign in</button></div>
-      <form onSubmit={submit} className="form-stack">
-        {mode === 'register' && <><label>Your name<input required minLength="2" maxLength="120" value={form.name} onChange={change('name')} placeholder="Alex Morgan" /></label><label>Company name<input required minLength="2" maxLength="120" value={form.companyName} onChange={change('companyName')} placeholder="Acme Supply Co." /></label></>}
-        <label>Work email<input required type="email" autoComplete="email" value={form.email} onChange={change('email')} placeholder="you@company.com" /></label>
-        <label>Password<input required type="password" minLength={mode === 'register' ? 10 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={form.password} onChange={change('password')} placeholder={mode === 'register' ? 'At least 10 characters' : 'Your password'} /></label>
-        {error && <div className="error-box" role="alert">{error}</div>}
-        <button className="primary wide" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Create your workspace →' : 'Sign in →'}</button>
-      </form>
-      <p className="tiny muted">Your business workspace is isolated from other companies. Keep your login credentials private.</p>
+    <section className="auth-form-side">
+      <div className="auth-card">
+        <div className="auth-brand-row"><img className="brand-symbol auth-brand-symbol" src="/vendormesh-mark.svg" alt="VendorMesh" /><span>VENDORMESH / WORKSPACE</span><span className="auth-secure"><i /> PRIVATE WORKSPACE</span></div>
+        <p className="eyebrow">PROCUREMENT INTELLIGENCE</p>
+        <h1>{mode === 'register' ? 'Make every purchase more deliberate.' : 'Welcome back.'}</h1>
+        <p className="muted">{mode === 'register' ? 'Bring inventory, supplier relationships and purchase approvals into one focused workspace.' : 'Sign in to continue managing your workspace.'}</p>
+        <div className="auth-tabs">
+          <button type="button" className={mode === 'register' ? 'selected' : ''} onClick={() => { setMode('register'); setError(''); }}>Create workspace</button>
+          <button type="button" className={mode === 'login' ? 'selected' : ''} onClick={() => { setMode('login'); setError(''); }}>Sign in</button>
+        </div>
+        <form onSubmit={submit} className="form-stack">
+          {mode === 'register' && <>
+            <label>Your name<input required minLength="2" maxLength="120" autoComplete="name" value={form.name} onChange={change('name')} placeholder="Alex Morgan" /></label>
+            <label>Company name<input required minLength="2" maxLength="120" autoComplete="organization" value={form.companyName} onChange={change('companyName')} placeholder="Acme Supply Co." /></label>
+          </>}
+          <label>Work email<input required type="email" autoComplete="email" value={form.email} onChange={change('email')} placeholder="you@company.com" /></label>
+          <label>Password<input required type="password" minLength={mode === 'register' ? 10 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={form.password} onChange={change('password')} placeholder={mode === 'register' ? 'At least 10 characters' : 'Your password'} /></label>
+          {error && <div className="error-box" role="alert">{error}</div>}
+          <button className="primary wide auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Create your workspace' : 'Sign in'} <span aria-hidden="true">→</span></button>
+        </form>
+        <p className="tiny muted">Your business workspace is isolated from other companies. Keep your login credentials private.</p>
+      </div>
     </section>
-    <aside className="auth-aside"><div className="orb orb-one" /><div className="orb orb-two" /><span className="aside-kicker">VENDORMESH / WORKSPACE</span><h2>Make every purchase<br/>an informed decision.</h2><p>See stock risks, organize supplier relationships and route purchase requests through human approval.</p><div className="aside-points"><span>01 <b>Inventory visibility</b></span><span>02 <b>Supplier intelligence</b></span><span>03 <b>Approval-first purchasing</b></span></div></aside>
+    <aside className="auth-aside"><div className="auth-ambient-grid" aria-hidden="true" /><div className="auth-aside-content">
+      <span className="aside-kicker">A MORE ACCOUNTABLE WAY TO BUY</span>
+      <h2>Clarity from stock signal to purchase decision.</h2>
+      <p>Make operational context easier to see. Keep procurement workflows reviewable, deliberate and grounded in your workspace records.</p>
+      <div className="auth-preview">
+        <div className="auth-preview-heading"><span>WORKSPACE FLOW</span><span className="auth-preview-tag">PRODUCT PREVIEW</span></div>
+        <div className="auth-flow-row"><span className="auth-flow-icon">▦</span><span><b>Inventory visibility</b><small>Stock counts · Reorder thresholds</small></span><span className="auth-flow-state">01</span></div>
+        <div className="auth-flow-connector" />
+        <div className="auth-flow-row"><span className="auth-flow-icon">⇄</span><span><b>Supplier context</b><small>Contacts · Lead times · Reliability</small></span><span className="auth-flow-state">02</span></div>
+        <div className="auth-flow-connector" />
+        <div className="auth-flow-row"><span className="auth-flow-icon">✓</span><span><b>Human-reviewed purchasing</b><small>Requests · Approvals · Audit trail</small></span><span className="auth-flow-state">03</span></div>
+        <div className="auth-preview-footer"><span><i /> WORKSPACE CONTROLS</span><span>BUILT AROUND REVIEWABLE DECISIONS</span></div>
+      </div>
+      <div className="auth-feature-line"><span>INVENTORY</span><span>SUPPLIER INTELLIGENCE</span><span>APPROVAL WORKFLOWS</span></div>
+    </div></aside>
   </main>;
 }
 
@@ -98,6 +121,40 @@ export default function App() {
   const [supplierForm, setSupplierForm] = useState({ name: '', email: '', leadTimeDays: '7', reliabilityScore: '80', paymentTerms: 'Net 30' });
   const [requestForm, setRequestForm] = useState({ inventoryItemId: '', supplierId: '', quantity: '1', unitCost: '', rationale: '' });
   const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('vendormesh.theme') === 'light' ? 'light' : 'dark'; }
+    catch { return 'dark'; }
+  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [focusTarget, setFocusTarget] = useState('');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    try { localStorage.setItem('vendormesh.theme', theme); } catch { /* Storage can be unavailable in private contexts. */ }
+  }, [theme]);
+
+  useEffect(() => {
+    const handleShortcut = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && session) {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [session]);
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    const target = document.querySelector('[data-command-target="' + focusTarget + '"]');
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.querySelector('input:not([type="hidden"]), select, textarea')?.focus({ preventScroll: true });
+    }
+    setFocusTarget('');
+  }, [tab, focusTarget]);
 
   const refresh = useCallback(async () => {
     const [s, i, v, p, r] = await Promise.all([
@@ -183,28 +240,96 @@ export default function App() {
   if (!session) return <AuthScreen onAuthenticated={authenticated} />;
 
   const lowCount = inventory.filter((i) => i.lowStock).length;
-  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(['owner','admin'].includes(session.company?.role) ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
-  return <div className="app-shell">
-    <a className="skip-link" href="#main-content">Skip to content</a>
-    <aside className="sidebar" aria-label="Workspace navigation">
-      <div className="side-brand"><img className="brand-symbol" src="/vendormesh-mark.svg" alt="" /><div><strong>VendorMesh</strong><small>PROCUREMENT WORKSPACE</small></div></div>
-      <div className="workspace-label">WORKSPACE</div><div className="workspace-chip"><span className="company-avatar">{(session.company?.name || 'V').slice(0,1).toUpperCase()}</span><span><b>{session.company?.name}</b><small>{session.company?.role || 'member'}</small></span></div>
-      <nav>{nav.map(([id, label, icon]) => <button key={id} className={tab === id ? 'nav-active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span className="nav-icon"><NavIcon name={icon}/></span>{label}{id === 'purchases' && summary?.pendingApprovals > 0 && <i>{summary.pendingApprovals}</i>}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="secure-note"><span>●</span> Workspace session active</div><button className="signout" onClick={signOut}>↪ Sign out</button></div>
-    </aside>
-    <main className="main-area" id="main-content" tabIndex="-1">
-      <header className="topbar"><div><p className="eyebrow">BUSINESS OPERATIONS / {tab.toUpperCase()}</p><h1>{({overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals',invoices:'Invoice review',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'})[tab]}</h1></div><div className="top-user"><div className="user-avatar">{(session.user?.name || 'U').slice(0,1).toUpperCase()}</div><div><b>{session.user?.name}</b><small>{session.user?.email}</small></div></div></header>
-      {(error || notice) && <div className={error ? 'flash flash-error' : 'flash flash-ok'} role={error ? 'alert' : 'status'}>{error || notice}<button onClick={() => {setError('');setNotice('');}}>×</button></div>}
+  const firstName = (session.user?.name || 'there').trim().split(/\s+/)[0];
+  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+  const isManager = ['owner', 'admin'].includes(session.company?.role);
+  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(isManager ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
+  const pageTitles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals',invoices:'Invoice review',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
+  const commandItems = [
+    ...nav.map(([id, label]) => ({ id: 'page-' + id, group: 'Navigation', label: 'Go to ' + label, description: pageTitles[id], icon: '↗', onSelect: () => setTab(id) })),
+    { id: 'new-inventory', group: 'Quick actions', label: 'Add inventory item', description: 'Open the inventory form', icon: '+', onSelect: () => { setTab('inventory'); setFocusTarget('inventory-form'); } },
+    { id: 'new-supplier', group: 'Quick actions', label: 'Add supplier', description: 'Open the supplier form', icon: '+', onSelect: () => { setTab('suppliers'); setFocusTarget('supplier-form'); } },
+    { id: 'new-purchase', group: 'Quick actions', label: 'Create purchase request', description: 'Prepare a request for human approval', icon: '+', onSelect: () => { setTab('purchases'); setFocusTarget('purchase-form'); } },
+    { id: 'theme-toggle', group: 'Preferences', label: 'Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' appearance', description: 'Change the workspace color theme', icon: theme === 'dark' ? '☼' : '◐', onSelect: () => setTheme(theme === 'dark' ? 'light' : 'dark') }
+  ];
+  return <>
+    <div className={'app-shell' + (sidebarCollapsed ? ' sidebar-collapsed' : '')}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <aside className="sidebar" aria-label="Workspace navigation">
+        <div className="side-brand"><img className="brand-symbol" src="/vendormesh-mark.svg" alt="" /><div className="side-brand-copy"><strong>VendorMesh</strong><small>PROCUREMENT WORKSPACE</small></div>
+          <button className="sidebar-toggle" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}>{sidebarCollapsed ? '»' : '«'}</button>
+        </div>
+        <div className="workspace-label">ACTIVE WORKSPACE</div>
+        <div className="workspace-chip" title={session.company?.name || 'Active workspace'}>
+          <span className="company-avatar">{(session.company?.name || 'V').slice(0,1).toUpperCase()}</span>
+          <span><b>{session.company?.name}</b><small>{session.company?.role || 'member'}</small></span>
+        </div>
+        <button className="quick-jump" type="button" onClick={() => setCommandOpen(true)} aria-label="Open quick jump command palette">
+          <span className="quick-jump-icon" aria-hidden="true">⌕</span><span className="quick-jump-label">Quick Jump...</span><kbd>Ctrl K</kbd>
+        </button>
+        <nav aria-label="Workspace pages">
+          {nav.map(([id, label, icon]) => (
+            <button key={id} title={label} aria-label={label} className={tab === id ? 'nav-active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
+              <span className="nav-icon"><NavIcon name={icon}/></span><span className="nav-label">{label}</span>
+              {id === 'inventory' && lowCount > 0 && <i className="nav-counter nav-counter-warn">{lowCount}</i>}
+              {id === 'purchases' && summary?.pendingApprovals > 0 && <i className="nav-counter">{summary.pendingApprovals}</i>}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="secure-note"><span>●</span><span className="secure-note-label">Workspace session active</span></div>
+          <button className="signout" onClick={signOut}><span aria-hidden="true">↪</span><span className="signout-label">Sign out</span></button>
+        </div>
+      </aside>
+      <main className="main-area" id="main-content" tabIndex="-1">
+        <header className="topbar">
+          <div className="topbar-heading"><p className="eyebrow"><span>WORKSPACE</span><span className="breadcrumb-separator"> / </span>{tab.toUpperCase()}</p><h1>{pageTitles[tab]}</h1></div>
+          <div className="topbar-actions">
+            <button className="topbar-search" type="button" onClick={() => setCommandOpen(true)} aria-label="Search pages and actions"><span aria-hidden="true">⌕</span><span className="topbar-search-label">Search pages &amp; actions</span><kbd>Ctrl K</kbd></button>
+            <button className="theme-toggle" type="button" onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} aria-label={'Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' mode'} title={'Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' mode'}><span aria-hidden="true">{theme === 'dark' ? '☼' : '◐'}</span><span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+            <div className="top-user"><div className="user-avatar">{(session.user?.name || 'U').slice(0,1).toUpperCase()}</div><div><b>{session.user?.name}</b><small>{session.user?.email}</small></div></div>
+          </div>
+        </header>      {(error || notice) && <div className={error ? 'flash flash-error' : 'flash flash-ok'} role={error ? 'alert' : 'status'}>{error || notice}<button onClick={() => {setError('');setNotice('');}}>×</button></div>}
       {tab === 'overview' && <>
-        <section className="welcome-panel"><div><span className="panel-tag">WORKSPACE SNAPSHOT</span><h2>Good decisions start with<br/>good visibility.</h2><p>Monitor stock exposure, supplier coverage and purchase approvals from one place.</p></div><div className="welcome-stat"><span>ESTIMATED INVENTORY VALUE</span><strong>{money(summary?.inventoryValue, session.company?.currency)}</strong><small>Based on on-hand units × unit cost</small></div></section>
-        <div className="metric-grid"><Metric label="Inventory items" value={summary?.inventoryCount ?? '—'} note={`${summary?.totalUnits ?? 0} units on hand`} icon="▦"/><Metric label="Low-stock alerts" value={summary?.lowStock ?? 0} note={lowCount ? 'Replenishment may be needed' : 'No items below reorder point'} icon="⌁" tone={lowCount ? 'amber' : ''}/><Metric label="Active suppliers" value={summary?.supplierCount ?? '—'} note="Supplier records in this workspace" icon="⇄"/><Metric label="Pending approvals" value={summary?.pendingApprovals ?? 0} note="Require owner/admin review" icon="◷" tone={summary?.pendingApprovals ? 'amber' : ''}/></div>
+        <section className="dashboard-hero">
+          <div className="dashboard-hero-copy">
+            <div className="dashboard-meta"><span className="dashboard-kicker">WORKSPACE SNAPSHOT</span><span className="dashboard-date">{todayLabel}</span></div>
+            <h2>{greeting}, {firstName}.</h2>
+            <p>Your procurement workspace, grounded in the inventory and purchasing records your team has entered.</p>
+            <div className="dashboard-hero-actions">
+              <button className="primary" onClick={() => { setTab('purchases'); setFocusTarget('purchase-form'); }}>＋ New purchase request</button>
+              <button className="secondary" onClick={() => { setTab('suppliers'); setFocusTarget('supplier-form'); }}>Add supplier</button>
+            </div>
+          </div>
+          <div className="dashboard-hero-value">
+            <span>ESTIMATED INVENTORY VALUE</span>
+            <strong>{money(summary?.inventoryValue, session.company?.currency)}</strong>
+            <small>On-hand quantity × recorded unit cost</small>
+            <div className="hero-value-foot"><span><b>{summary?.inventoryCount ?? 0}</b> SKUs</span><span><b>{summary?.totalUnits ?? 0}</b> units on hand</span></div>
+          </div>
+          <div className="dashboard-hero-orbit" aria-hidden="true" />
+        </section>
+        <div className="dashboard-section-head">
+          <div><span className="dashboard-kicker">AT A GLANCE</span><h2>Operational overview</h2><p>Current values from this workspace. Small bars show record profiles, not historical performance.</p></div>
+          <span className="snapshot-status"><i /> WORKSPACE DATA</span>
+        </div>
+        <div className="metric-grid dashboard-metrics">
+          <Metric label="Inventory items" value={summary?.inventoryCount ?? '—'} note={(summary?.totalUnits ?? 0) + ' units on hand'} icon="▦" series={inventory.slice(0,12).map((item) => item.onHand)} seriesLabel="On-hand units across the first 12 inventory records" seriesCaption="ON-HAND PROFILE" />
+          <Metric label="Low-stock alerts" value={summary?.lowStock ?? 0} note={lowCount ? 'Items at or below reorder thresholds' : 'No items below reorder thresholds'} icon="⌁" tone={lowCount ? 'amber' : ''} series={inventory.slice(0,12).map((item) => item.lowStock ? 1 : 0)} seriesLabel="Low-stock status across the first 12 inventory records" seriesCaption="STOCK STATUS" />
+          <Metric label="Active suppliers" value={summary?.supplierCount ?? '—'} note="Supplier records in this workspace" icon="⇄" series={suppliers.slice(0,12).map((supplier) => supplier.reliabilityScore).filter((score) => Number.isFinite(Number(score)))} seriesLabel="Recorded supplier reliability scores" seriesCaption="RECORDED RELIABILITY" />
+          <Metric label="Pending approvals" value={summary?.pendingApprovals ?? 0} note="Requests awaiting owner/admin review" icon="◷" tone={summary?.pendingApprovals ? 'amber' : ''} series={requests.slice(0,12).map((request) => request.status === 'pending' ? 1 : 0)} seriesLabel="Pending status across the first 12 purchase requests" seriesCaption="REQUEST STATUS" />
+        </div>
+        <div className="dashboard-bento">
+          <PurchaseRequestChart requests={requests} currency={session.company?.currency} />
+          <ActionInbox requests={requests} inventory={inventory} currency={session.company?.currency} onPurchases={() => setTab('purchases')} onInventory={() => setTab('inventory')} onInsights={() => setTab('recommendations')} />
+        </div>
         <div className="section-heading"><div><h2>Inventory health</h2><p>Stock levels compared with your reorder thresholds.</p></div><button className="secondary" onClick={() => setTab('inventory')}>Manage inventory →</button></div>
         <div className="table-card"><InventoryTable items={inventory.slice(0,6)} currency={session.company?.currency}/>{inventory.length === 0 && <Empty title="Your inventory starts here" text="Add SKUs, stock counts, reorder points and unit costs to get a useful stock-risk view."/>}</div>
         <div className="section-heading"><div><h2>Recent purchase requests</h2><p>Keep purchasing decisions reviewable and accountable.</p></div><button className="secondary" onClick={() => setTab('purchases')}>Open approvals →</button></div>
         <div className="table-card"><RequestTable requests={requests.slice(0,5)} currency={session.company?.currency}/>{requests.length === 0 && <Empty title="No purchase requests yet" text="Create a request when an item needs replenishment or planned buying."/>}</div>
-      </>}
-      {tab === 'inventory' && <><div className="section-heading"><div><h2>Inventory records</h2><p>Track quantities, reorder points, unit cost and demand.</p></div></div><form className="form-card" onSubmit={addInventory}><h3>Add inventory item</h3><div className="fields"><Field label="SKU" value={itemForm.sku} onChange={v=>setItemForm({...itemForm,sku:v})} required/><Field label="Item name" value={itemForm.name} onChange={v=>setItemForm({...itemForm,name:v})} required/><Field label="On hand" type="number" min="0" value={itemForm.onHand} onChange={v=>setItemForm({...itemForm,onHand:v})} required/><Field label="Reorder point" type="number" min="0" value={itemForm.reorderPoint} onChange={v=>setItemForm({...itemForm,reorderPoint:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={itemForm.unitCost} onChange={v=>setItemForm({...itemForm,unitCost:v})} required/><Field label="Daily demand" type="number" min="0" step="0.1" value={itemForm.dailyDemand} onChange={v=>setItemForm({...itemForm,dailyDemand:v})}/></div><button className="primary" disabled={busy}>{busy?'Saving…':'Save inventory item'}</button></form><div className="table-card"><InventoryTable items={inventory} currency={session.company?.currency}/>{inventory.length===0&&<Empty title="No inventory records" text="Use the form above to add your first SKU."/>}</div></>}
-      {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" onSubmit={addSupplier}><h3>Add supplier</h3><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><div className="supplier-grid">{suppliers.map(s=><article className="supplier-card" key={s._id}><div className="supplier-avatar">{s.name.slice(0,1).toUpperCase()}</div><div className="supplier-info"><h3>{s.name}</h3><p>{s.email || 'No contact email added'}</p><div className="supplier-meta"><span>{s.leadTimeDays} day lead time</span><span>{s.reliabilityScore}% reliability</span></div><small>{s.paymentTerms}</small></div></article>)}</div>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
+      </>}      {tab === 'inventory' && <><div className="section-heading"><div><h2>Inventory records</h2><p>Track quantities, reorder points, unit cost and demand.</p></div></div><form className="form-card" data-command-target="inventory-form" onSubmit={addInventory}><h3>Add inventory item</h3><div className="fields"><Field label="SKU" value={itemForm.sku} onChange={v=>setItemForm({...itemForm,sku:v})} required/><Field label="Item name" value={itemForm.name} onChange={v=>setItemForm({...itemForm,name:v})} required/><Field label="On hand" type="number" min="0" value={itemForm.onHand} onChange={v=>setItemForm({...itemForm,onHand:v})} required/><Field label="Reorder point" type="number" min="0" value={itemForm.reorderPoint} onChange={v=>setItemForm({...itemForm,reorderPoint:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={itemForm.unitCost} onChange={v=>setItemForm({...itemForm,unitCost:v})} required/><Field label="Daily demand" type="number" min="0" step="0.1" value={itemForm.dailyDemand} onChange={v=>setItemForm({...itemForm,dailyDemand:v})}/></div><button className="primary" disabled={busy}>{busy?'Saving…':'Save inventory item'}</button></form><div className="table-card"><InventoryTable items={inventory} currency={session.company?.currency}/>{inventory.length===0&&<Empty title="No inventory records" text="Use the form above to add your first SKU."/>}</div></>}
+      {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" data-command-target="supplier-form" onSubmit={addSupplier}><h3>Add supplier</h3><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><div className="supplier-grid">{suppliers.map(s=><article className="supplier-card" key={s._id}><div className="supplier-avatar">{s.name.slice(0,1).toUpperCase()}</div><div className="supplier-info"><h3>{s.name}</h3><p>{s.email || 'No contact email added'}</p><div className="supplier-meta"><span>{s.leadTimeDays} day lead time</span><span>{s.reliabilityScore}% reliability</span></div><small>{s.paymentTerms}</small></div></article>)}</div>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
       {tab === 'recommendations' && <><div className="section-heading"><div><h2>Inventory recommendations</h2><p>Rules-based suggestions from this workspace's stock, demand and supplier lead times. No orders are placed automatically.</p></div><button className="secondary" onClick={() => act(async () => { const result = await api('/api/workspace/recommendations'); setRecommendations(result.recommendations || []); }, 'Recommendations refreshed.')}>Refresh insights</button></div>{recommendations.length === 0 ? <Empty title="No urgent replenishment signals" text="Add daily demand, reorder points and supplier records to make these insights more useful."/> : <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Item</th><th>Priority</th><th>On hand</th><th>Days of cover</th><th>Suggested qty</th><th>Supplier</th><th>Why flagged</th><th>Next step</th></tr></thead><tbody>{recommendations.map(r=><tr key={r.inventoryItemId}><td><b>{r.name}</b><small className="table-sub">{r.sku}</small></td><td><span className={`status ${r.priority==='high'?'status-low':r.priority==='medium'?'status-pending':'status-ok'}`}>{r.priority}</span></td><td>{r.onHand}</td><td>{r.daysOfCover===null?'—':r.daysOfCover}</td><td>{r.suggestedQuantity}</td><td>{r.supplier ? <>{r.supplier.name}<small className="table-sub">{r.supplier.leadTimeDays} day lead · {r.supplier.reliabilityScore}% reliable</small></> : 'Not linked'}</td><td>{r.reasons.join(' ')}</td><td>{r.action==='review_purchase_request' && r.supplier ? <button className="secondary" onClick={()=>{setRequestForm({inventoryItemId:r.inventoryItemId,supplierId:r.supplier.id,quantity:String(Math.max(1,r.suggestedQuantity)),unitCost:String(inventory.find(i=>i._id===r.inventoryItemId)?.unitCost ?? 0),rationale:r.reasons.join(' ')});setTab('purchases');}}>Prepare request →</button> : <span className="muted">Monitor stock</span>}</td></tr>)}</tbody></table></div></div>}</>}
       {tab === 'ai' && <WorkspaceAI api={api} session={session} />}
       {tab === 'invoices' && <WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} />}
@@ -215,12 +340,97 @@ export default function App() {
       {tab === 'pricing' && <><div className="section-heading"><div><h2>What-if pricing scenarios</h2><p>Estimate revenue and gross profit across five price points before making a human-reviewed decision.</p></div></div><form className="form-card" onSubmit={runPricing}><h3>Scenario assumptions</h3><div className="fields"><Field label="Current unit price" type="number" min="0.01" step="0.01" value={pricingForm.basePrice} onChange={v=>setPricingForm({...pricingForm,basePrice:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={pricingForm.unitCost} onChange={v=>setPricingForm({...pricingForm,unitCost:v})} required/><Field label="Baseline units in period" type="number" min="0" step="1" value={pricingForm.baselineUnits} onChange={v=>setPricingForm({...pricingForm,baselineUnits:v})} required/><Field label="Demand elasticity (0–5)" type="number" min="0" max="5" step="0.1" value={pricingForm.elasticity} onChange={v=>setPricingForm({...pricingForm,elasticity:v})} required/><Field label="Competitor price (optional)" type="number" min="0.01" step="0.01" value={pricingForm.competitorPrice} onChange={v=>setPricingForm({...pricingForm,competitorPrice:v})}/></div><button className="primary" disabled={busy}>{busy?'Calculating…':'Calculate scenarios'}</button></form>{pricingResult&&<><div className="flash flash-ok">{pricingResult.warning}</div><div className="section-heading"><div><h2>Estimated outcomes</h2><p>These are model-based estimates, not guaranteed forecasts.</p></div></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th>Price change</th><th>Price</th><th>Predicted units</th><th>Revenue</th><th>Gross profit</th><th>Margin</th><th>Vs. competitor</th></tr></thead><tbody>{pricingResult.scenarios.map((s)=><tr key={s.changePercent}><td>{s.changePercent>0?'+':''}{s.changePercent}%</td><td>{money(s.price)}</td><td>{s.predictedUnits}</td><td>{money(s.revenue)}</td><td>{money(s.grossProfit)}</td><td>{s.marginPercent}%</td><td>{s.versusCompetitorPercent===null?'—':`${s.versusCompetitorPercent>0?'+':''}${s.versusCompetitorPercent}%`}</td></tr>)}</tbody></table></div><p className="muted">Highest estimated gross profit: {money(pricingResult.highestEstimatedGrossProfit.grossProfit)} at {money(pricingResult.highestEstimatedGrossProfit.price)}.</p></div></>}</>}
       {tab === 'audit' && <><div className="section-heading"><div><h2>Workspace activity</h2><p>Recent authenticated write requests. Request payloads and secrets are never displayed.</p></div><button className="secondary" onClick={loadAuditLog}>Refresh log ↻</button></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th>Time</th><th>Actor</th><th>Role</th><th>Action</th><th>Resource</th><th>Status</th><th>Request ID</th></tr></thead><tbody>{auditEntries.map((entry) => <tr key={entry._id}><td>{entry.occurredAt ? new Date(entry.occurredAt).toLocaleString() : '—'}</td><td><code>{entry.actorUserId || 'system'}</code></td><td>{entry.actorRole || 'unknown'}</td><td><span className="status">{entry.action}</span></td><td><code>{entry.resource}</code></td><td><span className={`status ${entry.statusCode >= 400 ? 'status-low' : 'status-ok'}`}>{entry.statusCode}</span></td><td><code>{entry.requestId || '—'}</code></td></tr>)}</tbody></table></div>{auditEntries.length===0&&<Empty title="No audit events yet" text="Authenticated write requests will appear here after workspace activity."/>}</div></>}
       {tab === 'team' && <><div className="section-heading"><div><h2>Workspace members</h2><p>Review current access. Owners retain ownership; only owners can grant admin access.</p></div><button className="secondary" onClick={loadTeam}>Refresh members</button></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Status</th><th>Permissions</th></tr></thead><tbody>{team.map(m=><tr key={m.id}><td><b>{m.name}</b></td><td>{m.email}</td><td>{m.role==='owner'?'Owner':<select aria-label={`Role for ${m.name}`} value={m.role} disabled={busy||session.company?.role!=='owner'} onChange={e=>updateMember(m.id,{role:e.target.value})}><option value="staff">Staff</option><option value="admin">Admin</option></select>}</td><td><span className={`status ${m.status==='active'?'status-ok':'status-low'}`}>{m.status}</span></td><td>{m.role==='owner'?'Protected owner account':<button className="secondary" disabled={busy} onClick={()=>updateMember(m.id,{status:m.status==='active'?'suspended':'active'})}>{m.status==='active'?'Suspend access':'Restore access'}</button>}</td></tr>)}</tbody></table></div>{team.length===0&&<Empty title="No team members loaded" text="Refresh to load members. Only owners and admins can view this page."/>}</div><p className="inline-hint">Team member invitations and email delivery are not included in this release. This screen manages existing workspace memberships only.</p></>}
-      {tab === 'purchases' && <><div className="section-heading"><div><h2>Purchase requests</h2><p>Requests remain pending until an owner or admin reviews them.</p></div></div><form className="form-card" onSubmit={createRequest}><h3>New purchase request</h3>{(!inventory.length || !suppliers.some(s=>s.active)) && <p className="inline-hint">Add at least one inventory item and one active supplier before creating a request.</p>}<div className="fields"><label>Inventory item<select required value={requestForm.inventoryItemId} onChange={e=>{const item=inventory.find(i=>i._id===e.target.value);setRequestForm({...requestForm,inventoryItemId:e.target.value,unitCost:item?String(item.unitCost):''});}}><option value="">Select item…</option>{inventory.map(i=><option key={i._id} value={i._id}>{i.sku} — {i.name}</option>)}</select></label><label>Supplier<select required value={requestForm.supplierId} onChange={e=>setRequestForm({...requestForm,supplierId:e.target.value})}><option value="">Select supplier…</option>{suppliers.filter(s=>s.active).map(s=><option key={s._id} value={s._id}>{s.name}</option>)}</select></label><Field label="Quantity" type="number" min="1" value={requestForm.quantity} onChange={v=>setRequestForm({...requestForm,quantity:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={requestForm.unitCost} onChange={v=>setRequestForm({...requestForm,unitCost:v})} required/><Field label="Business rationale" value={requestForm.rationale} onChange={v=>setRequestForm({...requestForm,rationale:v})}/></div>{requestForm.quantity && requestForm.unitCost!=='' && <p className="estimate">Estimated request total <b>{money(Number(requestForm.quantity)*Number(requestForm.unitCost),session.company?.currency)}</b></p>}<button className="primary" disabled={busy||!inventory.length||!suppliers.some(s=>s.active)}>{busy?'Submitting…':'Submit for approval'}</button></form><div className="table-card"><RequestTable requests={requests} currency={session.company?.currency} onReview={review} onTransition={transitionRequest} role={session.company?.role}/>{requests.length===0&&<Empty title="No requests to review" text="Purchase requests will appear here with their approval status and audit details."/>}</div></>}
+      {tab === 'purchases' && <><div className="section-heading"><div><h2>Purchase requests</h2><p>Requests remain pending until an owner or admin reviews them.</p></div></div><form className="form-card" data-command-target="purchase-form" onSubmit={createRequest}><h3>New purchase request</h3>{(!inventory.length || !suppliers.some(s=>s.active)) && <p className="inline-hint">Add at least one inventory item and one active supplier before creating a request.</p>}<div className="fields"><label>Inventory item<select required value={requestForm.inventoryItemId} onChange={e=>{const item=inventory.find(i=>i._id===e.target.value);setRequestForm({...requestForm,inventoryItemId:e.target.value,unitCost:item?String(item.unitCost):''});}}><option value="">Select item…</option>{inventory.map(i=><option key={i._id} value={i._id}>{i.sku} — {i.name}</option>)}</select></label><label>Supplier<select required value={requestForm.supplierId} onChange={e=>setRequestForm({...requestForm,supplierId:e.target.value})}><option value="">Select supplier…</option>{suppliers.filter(s=>s.active).map(s=><option key={s._id} value={s._id}>{s.name}</option>)}</select></label><Field label="Quantity" type="number" min="1" value={requestForm.quantity} onChange={v=>setRequestForm({...requestForm,quantity:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={requestForm.unitCost} onChange={v=>setRequestForm({...requestForm,unitCost:v})} required/><Field label="Business rationale" value={requestForm.rationale} onChange={v=>setRequestForm({...requestForm,rationale:v})}/></div>{requestForm.quantity && requestForm.unitCost!=='' && <p className="estimate">Estimated request total <b>{money(Number(requestForm.quantity)*Number(requestForm.unitCost),session.company?.currency)}</b></p>}<button className="primary" disabled={busy||!inventory.length||!suppliers.some(s=>s.active)}>{busy?'Submitting…':'Submit for approval'}</button></form><div className="table-card"><RequestTable requests={requests} currency={session.company?.currency} onReview={review} onTransition={transitionRequest} role={session.company?.role}/>{requests.length===0&&<Empty title="No requests to review" text="Purchase requests will appear here with their approval status and audit details."/>}</div></>}
       <footer className="footer"><span>VENDORMESH · PROCUREMENT WORKSPACE</span><span>Human-reviewed decisions. Clear operational records.</span></footer>
-    </main>
-  </div>;
+      </main>
+    </div>
+    <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} items={commandItems} placeholder="Search pages, actions, and workspace tools..." />
+  </>;
 }
-function Metric({label,value,note,icon,tone}) { return <article className="metric-card"><div className={`metric-icon ${tone||''}`}>{icon}</div><span>{label}</span><strong>{value}</strong><small>{note}</small></article>; }
+function Metric({label,value,note,icon,tone,series,seriesLabel,seriesCaption}) {
+  const values = Array.isArray(series) ? series.map(Number).filter((value) => Number.isFinite(value)) : [];
+  const max = Math.max(1, ...values);
+  return <article className="metric-card">
+    <div className="metric-card-top"><div className={'metric-icon ' + (tone || '')}>{icon}</div><span className="metric-label">{label}</span></div>
+    <strong>{value}</strong>
+    <small>{note}</small>
+    {values.length > 0 && <div className="metric-profile" role="img" aria-label={seriesLabel || 'Record profile'}>
+      <div className="metric-profile-bars">{values.map((value,index) => <span key={index} style={{height: Math.max(12, (value / max) * 100) + '%'}} />)}</div>
+      <span>{seriesCaption || 'RECORD PROFILE'}</span>
+    </div>}
+  </article>;
+}
+function PurchaseRequestChart({requests,currency}) {
+  const [range,setRange] = useState(7);
+  const chart = useMemo(() => {
+    const end = new Date();
+    end.setHours(23,59,59,999);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (range - 1));
+    start.setHours(0,0,0,0);
+    const count = range === 7 ? 7 : range === 30 ? 10 : 12;
+    const bucketMs = (end.getTime() - start.getTime() + 1) / count;
+    const points = Array.from({length:count},(_,index)=>({label:new Date(start.getTime() + bucketMs * index),value:0,count:0}));
+    requests.forEach((request) => {
+      const date = new Date(request.createdAt);
+      if (!Number.isFinite(date.getTime()) || date < start || date > end) return;
+      const index = Math.min(count - 1, Math.floor((date.getTime() - start.getTime()) / bucketMs));
+      points[index].value += Number(request.totalCost) || 0;
+      points[index].count += 1;
+    });
+    const totalValue = points.reduce((sum,point)=>sum+point.value,0);
+    const totalCount = points.reduce((sum,point)=>sum+point.count,0);
+    const maxValue = Math.max(1,...points.map(point=>point.value));
+    const coords = points.map((point,index)=>Object.assign({},point,{
+      x: 28 + (index / Math.max(1, count - 1)) * 624,
+      y: 145 - (point.value / maxValue) * 110
+    }));
+    const line = coords.map((point,index)=>(index===0?'M':'L')+' '+point.x.toFixed(2)+' '+point.y.toFixed(2)).join(' ');
+    const area = line+' L 652 150 L 28 150 Z';
+    return {points:coords,totalValue,totalCount,line,area};
+  },[requests,range]);
+  return <section className="dashboard-panel chart-panel">
+    <div className="panel-heading">
+      <div><span className="dashboard-kicker">PROCUREMENT ACTIVITY</span><h2>Purchase request value</h2><p>Recorded request totals by creation date. This is requested value, not paid spend.</p></div>
+      <div className="range-switch" aria-label="Chart date range">{[7,30,90].map(value=><button type="button" key={value} className={range===value?'selected':''} aria-pressed={range===value} onClick={()=>setRange(value)}>{value}D</button>)}</div>
+    </div>
+    <div className="chart-summary">
+      <div><strong>{money(chart.totalValue,currency)}</strong><span>REQUESTED VALUE IN WINDOW</span></div>
+      <div><strong>{chart.totalCount}</strong><span>REQUESTS CREATED</span></div>
+    </div>
+    {chart.totalCount === 0 ? <div className="chart-empty"><div className="chart-empty-icon">⌁</div><b>No purchase activity in this window</b><span>New purchase requests will appear here after they are created.</span></div> : <>
+      <div className="request-chart" role="img" aria-label={chart.totalCount + ' purchase requests with total requested value ' + money(chart.totalValue,currency)}>
+        <svg viewBox="0 0 680 180" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="request-chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#818cf8" stopOpacity=".32"/><stop offset="100%" stopColor="#818cf8" stopOpacity="0"/></linearGradient></defs>
+          {[35,72,109,150].map(y=><line key={y} x1="28" x2="652" y1={y} y2={y} stroke="currentColor" strokeOpacity=".10" strokeDasharray="4 6" />)}
+          <path d={chart.area} fill="url(#request-chart-fill)" />
+          <path d={chart.line} fill="none" stroke="#818cf8" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          {chart.points.map((point,index)=><circle key={index} cx={point.x} cy={point.y} r="3.4" fill="#a5b4fc" stroke="#0c0c0f" strokeWidth="2"><title>{point.label.toLocaleDateString()} · {money(point.value,currency)} · {point.count} requests</title></circle>)}
+        </svg>
+      </div>
+      <div className="chart-axis"><span>{chart.points[0]?.label.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span><span>{chart.points[Math.floor(chart.points.length/2)]?.label.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span><span>{chart.points[chart.points.length-1]?.label.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>
+    </>}
+  </section>;
+}
+function ActionInbox({requests,inventory,currency,onPurchases,onInventory,onInsights}) {
+  const pending = requests.filter((request)=>request.status==='pending');
+  const lowStock = inventory.filter((item)=>item.lowStock);
+  const items = [
+    ...pending.slice(0,3).map((request)=>({id:request._id,type:'APPROVAL',title:request.itemName || 'Purchase request',detail:(request.supplierId?.name || 'Supplier not linked')+' · '+money(request.totalCost,request.currency || currency),action:'Review',run:onPurchases,tone:'amber'})),
+    ...lowStock.slice(0,3).map((item)=>({id:item._id,type:'STOCK SIGNAL',title:item.name,detail:'On hand: '+item.onHand+' · Reorder point: '+item.reorderPoint,action:'Inspect',run:onInventory,tone:'rose'}))
+  ].slice(0,5);
+  return <section className="dashboard-panel action-panel">
+    <div className="panel-heading"><div><span className="dashboard-kicker">OPERATOR QUEUE</span><h2>Action inbox</h2><p>Items from the current workspace that may need attention.</p></div><span className="inbox-count">{items.length}</span></div>
+    {items.length === 0 ? <div className="inbox-empty"><span>✓</span><b>Nothing needs attention</b><p>No pending requests or low-stock items were found in the loaded records.</p><button className="secondary" type="button" onClick={onInsights}>View insights</button></div> : <div className="inbox-list">
+      {items.map((item)=><article className="inbox-item" key={item.id}>
+        <span className={'inbox-indicator ' + item.tone} />
+        <div className="inbox-item-copy"><small>{item.type}</small><b>{item.title}</b><span>{item.detail}</span></div>
+        <button className="inbox-action" type="button" onClick={item.run}>{item.action} <span>→</span></button>
+      </article>)}
+    </div>}
+    <div className="inbox-footer"><span>{pending.length} pending approval{pending.length===1?'':'s'}</span><span>{lowStock.length} low-stock item{lowStock.length===1?'':'s'}</span></div>
+  </section>;
+}
 function Field({label,value,onChange,type='text',...props}) { return <label>{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} {...props}/></label>; }
 function Empty({title,text}) { return <div className="empty-state"><div className="empty-icon">↗</div><b>{title}</b><p>{text}</p></div>; }
 function InventoryTable({items,currency}) { return <div className="table-scroll"><table><thead><tr><th>Item</th><th>SKU</th><th>On hand</th><th>Reorder point</th><th>Unit cost</th><th>Stock status</th></tr></thead><tbody>{items.map(i=><tr key={i._id}><td><b>{i.name}</b></td><td><code>{i.sku}</code></td><td>{i.onHand}</td><td>{i.reorderPoint}</td><td>{money(i.unitCost,currency)}</td><td><span className={`status ${i.lowStock?'status-low':'status-ok'}`}>{i.lowStock?'Reorder suggested':'In range'}</span></td></tr>)}</tbody></table></div>; }
