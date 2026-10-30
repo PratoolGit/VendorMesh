@@ -982,3 +982,8 @@ tbody tr:hover td { background: rgba(255,255,255,0.025); }
   .top-user>div:last-child{display:none}
 }
 @media(max-width:440px){.topbar-heading .eyebrow{font-size:8px}.topbar h1{font-size:16px}.topbar-actions{gap:5px}.top-user .user-avatar{width:29px;height:29px}.sidebar nav button{padding-left:7px;padding-right:7px}}
+
+/* Keep the collapse affordance clear of the brand mark in compact desktop mode. */
+.sidebar-collapsed .side-brand { justify-content: space-between; }
+.sidebar-collapsed .side-brand .brand-symbol { width: 24px; height: 24px; flex-basis: 24px; }
+.sidebar-collapsed .sidebar-toggle { position: static; flex: 0 0 20px; width: 20px; height: 20px; margin: 0; font-size: 14px; }
