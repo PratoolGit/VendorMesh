@@ -42,7 +42,7 @@ function NavIcon({ name }) {
 }
 
 function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState('register');
+  const [mode, setMode] = useState('landing');
   const [form, setForm] = useState({ name: '', email: '', password: '', companyName: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -58,6 +58,85 @@ function AuthScreen({ onAuthenticated }) {
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
+  if (mode === 'landing') {
+    return (
+      <main className="public-shell">
+        <header className="public-nav">
+          <a className="public-brand" href="#top" aria-label="VendorMesh home">
+            <img className="brand-symbol" src="/vendormesh-mark.svg" alt="" />
+            <span><b>VendorMesh</b><small>PROCUREMENT WORKSPACE</small></span>
+          </a>
+          <nav className="public-nav-links" aria-label="Public navigation"><a href="#capabilities">Capabilities</a><a href="#workflow">How it works</a></nav>
+          <div className="public-nav-actions">
+            <button className="public-signin" type="button" onClick={() => { setMode('login'); setError(''); }}>Sign in</button>
+            <button className="public-cta public-cta-small" type="button" onClick={() => { setMode('register'); setError(''); }}>Create workspace <span>↗</span></button>
+          </div>
+        </header>
+
+        <section className="public-hero" id="top">
+          <div className="public-hero-copy">
+            <div className="announcement-pill"><span className="announcement-dot"/>Procurement, with a clearer operating picture</div>
+            <p className="public-eyebrow">INVENTORY · SUPPLIERS · PURCHASING</p>
+            <h1>Every purchase.<br/><span>More intentional.</span></h1>
+            <p className="public-lede">Bring stock visibility, supplier context and approval-led purchasing into one focused workspace. Make decisions with the operating details in view.</p>
+            <div className="public-hero-actions">
+              <button className="public-cta" type="button" onClick={() => { setMode('register'); setError(''); }}>Create your workspace <span>→</span></button>
+              <button className="public-cta-secondary" type="button" onClick={() => { setMode('login'); setError(''); }}>Sign in to VendorMesh</button>
+            </div>
+            <div className="public-assurance"><span>✳</span> Company-scoped workspaces <i/> Human-reviewed purchasing <i/> Transparent planning signals</div>
+          </div>
+
+          <div className="public-preview-wrap" aria-label="Illustrative workspace preview">
+            <div className="public-preview-glow"/>
+            <div className="public-preview">
+              <div className="preview-topbar"><div className="preview-brand"><img src="/vendormesh-mark.svg" alt=""/><b>VendorMesh</b></div><span>WORKSPACE PREVIEW</span><i/></div>
+              <div className="preview-body">
+                <div className="preview-sidebar"><b>Overview</b><span>Inventory</span><span>Suppliers</span><span>Purchasing</span><span>AI insights</span></div>
+                <div className="preview-content">
+                  <div className="preview-heading"><small>WORKSPACE / OVERVIEW</small><b>Procurement overview</b></div>
+                  <div className="preview-stat-grid"><div><small>INVENTORY</small><b>Stock position</b><i/></div><div><small>SUPPLIERS</small><b>Vendor records</b><i/></div><div><small>PURCHASING</small><b>Approval queue</b><i/></div></div>
+                  <div className="preview-chart-card"><div><b>Inventory position</b><small>ILLUSTRATIVE VIEW</small></div>
+                    <svg viewBox="0 0 520 150" role="img" aria-label="Illustrative chart artwork">
+                      <defs><linearGradient id="public-preview-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#818cf8" stopOpacity=".34"/><stop offset="100%" stopColor="#818cf8" stopOpacity="0"/></linearGradient></defs>
+                      <path d="M0 36H520M0 76H520M0 116H520" stroke="rgba(255,255,255,.08)" strokeDasharray="3 6"/>
+                      <path d="M0 125 C55 115 58 82 105 95 S170 56 215 75 S285 31 325 56 S400 76 438 48 S490 35 520 20 L520 150 L0 150Z" fill="url(#public-preview-fill)"/>
+                      <path d="M0 125 C55 115 58 82 105 95 S170 56 215 75 S285 31 325 56 S400 76 438 48 S490 35 520 20" fill="none" stroke="#818cf8" strokeWidth="2.5"/>
+                    </svg>
+                  </div>
+                  <div className="preview-row"><span>Inventory controls</span><b>Configured</b></div>
+                  <div className="preview-row"><span>Approval workflow</span><b>Human review</b></div>
+                </div>
+              </div>
+              <div className="preview-disclaimer">Illustrative interface · no customer data shown</div>
+            </div>
+            <div className="preview-orbit"/>
+          </div>
+        </section>
+
+        <section className="public-capabilities" id="capabilities">
+          <div className="public-section-head"><div><p className="public-eyebrow">A WORKSPACE BUILT AROUND THE WORK</p><h2>Clarity across the buying cycle.</h2></div><p>Keep operational context close without giving up human control over purchasing decisions.</p></div>
+          <div className="public-feature-grid">
+            <article className="public-feature public-feature-wide"><span>01 / INVENTORY</span><h3>Know what is on hand.</h3><p>Track SKUs, quantities, reorder thresholds and unit costs. Surface stock that needs attention before creating a request.</p><div className="feature-visual"><b/><i/></div><small>POSITION VS. REORDER POINT</small></article>
+            <article className="public-feature"><span>02 / SUPPLIERS</span><h3>Keep supplier context close.</h3><p>Store contacts, lead times, reliability scores and payment terms alongside purchasing work.</p><div className="feature-pills"><i>Contacts</i><i>Lead time</i><i>Reliability</i></div></article>
+            <article className="public-feature"><span>03 / APPROVALS</span><h3>Put approvals in the workflow.</h3><p>Submit purchase requests for owner/admin review, then record order and receipt progress.</p><div className="feature-flow"><b>Request</b><i>→</i><b>Human review</b></div></article>
+            <article className="public-feature public-feature-wide"><span>04 / INTELLIGENCE</span><h3>Turn records into useful signals.</h3><p>Use transparent inventory coverage estimates, rule-based review signals, advisory pricing scenarios and an optional workspace AI copilot.</p><div className="feature-intel"><b/><b/><b/><b/><b/><b/><b/></div><small>PLANNING BASELINE · NOT A GUARANTEED FORECAST</small></article>
+          </div>
+        </section>
+
+        <section className="public-workflow" id="workflow">
+          <div><p className="public-eyebrow">BUILT FOR ACCOUNTABLE OPERATIONS</p><h2>Useful context.<br/>Clear next steps.</h2></div>
+          <div className="workflow-steps">
+            <div><b>01</b><span><strong>Build the workspace</strong><small>Add inventory and supplier records to establish your operating baseline.</small></span></div>
+            <div><b>02</b><span><strong>Prepare a purchase request</strong><small>Connect the item, supplier, quantity and business rationale.</small></span></div>
+            <div><b>03</b><span><strong>Review and record</strong><small>Owners/admins review requests; the team can record order and receipt progress.</small></span></div>
+          </div>
+        </section>
+        <section className="public-bottom-cta"><div><p className="public-eyebrow">YOUR PROCUREMENT WORKSPACE</p><h2>Bring your buying workflow into focus.</h2><p>Start with your own records and a human-reviewed process.</p></div><button className="public-cta" type="button" onClick={() => { setMode('register'); setError(''); }}>Create your workspace <span>→</span></button></section>
+        <footer className="public-footer"><span>VENDORMESH · PROCUREMENT WORKSPACE</span><span>Inventory visibility. Supplier context. Accountable purchasing.</span></footer>
+      </main>
+    );
+  }
+
   return <main className="auth-shell">
     <section className="auth-form-side">
       <div className="auth-card">
