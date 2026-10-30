@@ -1125,7 +1125,7 @@ tbody tr:hover td { background: rgba(255,255,255,0.025); }
 
 /* Public VendorMesh landing experience */
 .public-shell{position:relative;min-height:100vh;overflow:hidden;color:var(--vm-text);background:radial-gradient(ellipse at 58% 0%,rgba(79,70,229,.12),transparent 45%),var(--vm-base)}
-.public-shell::before{position:absolute;inset:0;content:"";pointer-events:none;opacity:.4;background-image:linear-gradient(to right,rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.025) 1px,transparent 1px);background-size:32px 32%;-webkit-mask-image:linear-gradient(to bottom,#000,transparent 82%);mask-image:linear-gradient(to bottom,#000,transparent 82%)}
+.public-shell::before{position:absolute;inset:0;content:"";pointer-events:none;opacity:.4;background-image:linear-gradient(to right,rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.025) 1px,transparent 1px);background-size:32px 32px;-webkit-mask-image:linear-gradient(to bottom,#000,transparent 82%);mask-image:linear-gradient(to bottom,#000,transparent 82%)}
 .public-nav,.public-hero,.public-capabilities,.public-workflow,.public-bottom-cta,.public-footer{position:relative;z-index:1;width:min(1240px,calc(100% - 64px));margin-left:auto;margin-right:auto}
 .public-nav{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:78px;border-bottom:1px solid var(--vm-border)}
 .public-brand{display:flex;align-items:center;gap:10px;color:var(--vm-text);text-decoration:none}.public-brand .brand-symbol{width:34px;height:34px}.public-brand span{display:grid;gap:2px}.public-brand b{font-size:14px;letter-spacing:-.03em}.public-brand small{color:var(--vm-subtle);font:500 8px var(--vm-font-mono);letter-spacing:.11em}
