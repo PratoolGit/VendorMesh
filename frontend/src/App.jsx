@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CommandPalette } from './components/ui.jsx';
+import { CommandPalette, Sheet } from './components/ui.jsx';
 import WorkspaceAI from './components/WorkspaceAI.jsx';
 import WorkspaceAPIKeys from './components/WorkspaceAPIKeys.jsx';
 import WorkspaceInvoices from './components/WorkspaceInvoices.jsx';
@@ -311,6 +311,13 @@ export default function App() {
   async function updateMember(id, patch) {
     await act(async () => { await api(`/api/workspace/team/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }); await loadTeam(); }, 'Team permissions updated.');
   }
+  function startPurchaseRequest(item) {
+    const linkedId = item?.supplierId?._id || item?.supplierId || '';
+    const linkedSupplier = suppliers.find((supplier) => String(supplier._id) === String(linkedId));
+    setRequestForm({ inventoryItemId: item?._id || '', supplierId: linkedSupplier?._id || '', quantity: '1', unitCost: String(item?.unitCost ?? 0), rationale: item?.sku ? 'Replenishment review for ' + item.sku : 'Inventory replenishment review' });
+    setTab('purchases');
+    setFocusTarget('purchase-form');
+  }
   useEffect(() => { if (tab === 'forecast' && session) loadForecast(); }, [tab, session?.company?.id]);
   useEffect(() => { if (tab === 'anomalies' && session) loadAnomalies(); }, [tab, session?.company?.id]);
   useEffect(() => { if (tab === 'team' && ['owner', 'admin'].includes(session?.company?.role)) loadTeam(); }, [tab, session?.company?.role]);
@@ -404,11 +411,11 @@ export default function App() {
           <ActionInbox requests={requests} inventory={inventory} currency={session.company?.currency} onPurchases={() => setTab('purchases')} onInventory={() => setTab('inventory')} onInsights={() => setTab('recommendations')} />
         </div>
         <div className="section-heading"><div><h2>Inventory health</h2><p>Stock levels compared with your reorder thresholds.</p></div><button className="secondary" onClick={() => setTab('inventory')}>Manage inventory →</button></div>
-        <div className="table-card"><InventoryTable items={inventory.slice(0,6)} currency={session.company?.currency}/>{inventory.length === 0 && <Empty title="Your inventory starts here" text="Add SKUs, stock counts, reorder points and unit costs to get a useful stock-risk view."/>}</div>
+        <div className="table-card"><InventoryTable items={inventory.slice(0,6)} currency={session.company?.currency} onCreateRequest={startPurchaseRequest}/>{inventory.length === 0 && <Empty title="Your inventory starts here" text="Add SKUs, stock counts, reorder points and unit costs to get a useful stock-risk view."/>}</div>
         <div className="section-heading"><div><h2>Recent purchase requests</h2><p>Keep purchasing decisions reviewable and accountable.</p></div><button className="secondary" onClick={() => setTab('purchases')}>Open approvals →</button></div>
         <div className="table-card"><RequestTable requests={requests.slice(0,5)} currency={session.company?.currency}/>{requests.length === 0 && <Empty title="No purchase requests yet" text="Create a request when an item needs replenishment or planned buying."/>}</div>
-      </>}      {tab === 'inventory' && <><div className="section-heading"><div><h2>Inventory records</h2><p>Track quantities, reorder points, unit cost and demand.</p></div></div><form className="form-card" data-command-target="inventory-form" onSubmit={addInventory}><h3>Add inventory item</h3><div className="fields"><Field label="SKU" value={itemForm.sku} onChange={v=>setItemForm({...itemForm,sku:v})} required/><Field label="Item name" value={itemForm.name} onChange={v=>setItemForm({...itemForm,name:v})} required/><Field label="On hand" type="number" min="0" value={itemForm.onHand} onChange={v=>setItemForm({...itemForm,onHand:v})} required/><Field label="Reorder point" type="number" min="0" value={itemForm.reorderPoint} onChange={v=>setItemForm({...itemForm,reorderPoint:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={itemForm.unitCost} onChange={v=>setItemForm({...itemForm,unitCost:v})} required/><Field label="Daily demand" type="number" min="0" step="0.1" value={itemForm.dailyDemand} onChange={v=>setItemForm({...itemForm,dailyDemand:v})}/></div><button className="primary" disabled={busy}>{busy?'Saving…':'Save inventory item'}</button></form><div className="table-card"><InventoryTable items={inventory} currency={session.company?.currency}/>{inventory.length===0&&<Empty title="No inventory records" text="Use the form above to add your first SKU."/>}</div></>}
-      {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" data-command-target="supplier-form" onSubmit={addSupplier}><h3>Add supplier</h3><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><div className="supplier-grid">{suppliers.map(s=><article className="supplier-card" key={s._id}><div className="supplier-avatar">{s.name.slice(0,1).toUpperCase()}</div><div className="supplier-info"><h3>{s.name}</h3><p>{s.email || 'No contact email added'}</p><div className="supplier-meta"><span>{s.leadTimeDays} day lead time</span><span>{s.reliabilityScore}% reliability</span></div><small>{s.paymentTerms}</small></div></article>)}</div>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
+      </>}      {tab === 'inventory' && <><div className="section-heading"><div><h2>Inventory records</h2><p>Track quantities, reorder points, unit cost and demand.</p></div></div><form className="form-card" data-command-target="inventory-form" onSubmit={addInventory}><h3>Add inventory item</h3><div className="fields"><Field label="SKU" value={itemForm.sku} onChange={v=>setItemForm({...itemForm,sku:v})} required/><Field label="Item name" value={itemForm.name} onChange={v=>setItemForm({...itemForm,name:v})} required/><Field label="On hand" type="number" min="0" value={itemForm.onHand} onChange={v=>setItemForm({...itemForm,onHand:v})} required/><Field label="Reorder point" type="number" min="0" value={itemForm.reorderPoint} onChange={v=>setItemForm({...itemForm,reorderPoint:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={itemForm.unitCost} onChange={v=>setItemForm({...itemForm,unitCost:v})} required/><Field label="Daily demand" type="number" min="0" step="0.1" value={itemForm.dailyDemand} onChange={v=>setItemForm({...itemForm,dailyDemand:v})}/></div><button className="primary" disabled={busy}>{busy?'Saving…':'Save inventory item'}</button></form><div className="table-card"><InventoryTable items={inventory} currency={session.company?.currency} onCreateRequest={startPurchaseRequest}/>{inventory.length===0&&<Empty title="No inventory records" text="Use the form above to add your first SKU."/>}</div></>}
+      {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" data-command-target="supplier-form" onSubmit={addSupplier}><h3>Add supplier</h3><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><SupplierDirectory suppliers={suppliers}/>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
       {tab === 'recommendations' && <><div className="section-heading"><div><h2>Inventory recommendations</h2><p>Rules-based suggestions from this workspace's stock, demand and supplier lead times. No orders are placed automatically.</p></div><button className="secondary" onClick={() => act(async () => { const result = await api('/api/workspace/recommendations'); setRecommendations(result.recommendations || []); }, 'Recommendations refreshed.')}>Refresh insights</button></div>{recommendations.length === 0 ? <Empty title="No urgent replenishment signals" text="Add daily demand, reorder points and supplier records to make these insights more useful."/> : <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Item</th><th>Priority</th><th>On hand</th><th>Days of cover</th><th>Suggested qty</th><th>Supplier</th><th>Why flagged</th><th>Next step</th></tr></thead><tbody>{recommendations.map(r=><tr key={r.inventoryItemId}><td><b>{r.name}</b><small className="table-sub">{r.sku}</small></td><td><span className={`status ${r.priority==='high'?'status-low':r.priority==='medium'?'status-pending':'status-ok'}`}>{r.priority}</span></td><td>{r.onHand}</td><td>{r.daysOfCover===null?'—':r.daysOfCover}</td><td>{r.suggestedQuantity}</td><td>{r.supplier ? <>{r.supplier.name}<small className="table-sub">{r.supplier.leadTimeDays} day lead · {r.supplier.reliabilityScore}% reliable</small></> : 'Not linked'}</td><td>{r.reasons.join(' ')}</td><td>{r.action==='review_purchase_request' && r.supplier ? <button className="secondary" onClick={()=>{setRequestForm({inventoryItemId:r.inventoryItemId,supplierId:r.supplier.id,quantity:String(Math.max(1,r.suggestedQuantity)),unitCost:String(inventory.find(i=>i._id===r.inventoryItemId)?.unitCost ?? 0),rationale:r.reasons.join(' ')});setTab('purchases');}}>Prepare request →</button> : <span className="muted">Monitor stock</span>}</td></tr>)}</tbody></table></div></div>}</>}
       {tab === 'ai' && <WorkspaceAI api={api} session={session} />}
       {tab === 'invoices' && <WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} />}
@@ -512,15 +519,203 @@ function ActionInbox({requests,inventory,currency,onPurchases,onInventory,onInsi
 }
 function Field({label,value,onChange,type='text',...props}) { return <label>{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} {...props}/></label>; }
 function Empty({title,text}) { return <div className="empty-state"><div className="empty-icon">↗</div><b>{title}</b><p>{text}</p></div>; }
-function InventoryTable({items,currency}) { return <div className="table-scroll"><table><thead><tr><th>Item</th><th>SKU</th><th>On hand</th><th>Reorder point</th><th>Unit cost</th><th>Stock status</th></tr></thead><tbody>{items.map(i=><tr key={i._id}><td><b>{i.name}</b></td><td><code>{i.sku}</code></td><td>{i.onHand}</td><td>{i.reorderPoint}</td><td>{money(i.unitCost,currency)}</td><td><span className={`status ${i.lowStock?'status-low':'status-ok'}`}>{i.lowStock?'Reorder suggested':'In range'}</span></td></tr>)}</tbody></table></div>; }
-function RequestTable({requests,currency,onReview,onTransition,role}) {
-  const [receivedDrafts,setReceivedDrafts] = useState({});
-  const manager = ['owner','admin'].includes(role);
-  return <div className="table-scroll"><table><thead><tr><th>Request</th><th>Supplier</th><th>Qty</th><th>Total</th><th>Created</th><th>Status</th>{onReview&&<th>Review</th>}{onTransition&&<th>Fulfillment</th>}</tr></thead><tbody>{requests.map(r=>{
-    const orderedQuantity = Number(r.orderedQuantity || r.quantity);
-    const receivedQuantity = Number(r.receivedQuantity || 0);
-    const draft = Number(receivedDrafts[r._id] ?? receivedQuantity);
-    const canRecordReceipt = ['ordered','partially_received'].includes(r.status) && ['owner','admin','staff'].includes(role);
-    return <tr key={r._id}><td><b>{r.itemName}</b><small className="table-sub">{r.sku}{r.rationale? ` · ${r.rationale}`:''}</small></td><td>{r.supplierId?.name || 'Supplier'}</td><td>{r.quantity}<small className="table-sub">Received {receivedQuantity} / {orderedQuantity}</small></td><td>{money(r.totalCost,r.currency||currency)}</td><td>{new Date(r.createdAt).toLocaleDateString()}</td><td><span className={`status status-${r.status}`}>{r.status.replaceAll('_',' ')}</span></td>{onReview&&<td>{r.status==='pending'&&manager?<div className="review-actions"><button type="button" onClick={()=>onReview(r._id,'approved')}>Approve</button><button type="button" onClick={()=>onReview(r._id,'rejected')}>Reject</button></div>:'—'}</td>}{onTransition&&<td>{r.status==='approved'&&manager?<button type="button" className="secondary" onClick={()=>onTransition(r._id,{status:'ordered',orderedQuantity:r.quantity,note:'Marked ordered from the workspace'})}>Mark ordered</button>:canRecordReceipt?<div className="fulfillment-actions"><label>Total received<input aria-label={`Total received for ${r.itemName}`} type="number" min={receivedQuantity+1} max={orderedQuantity} step="1" value={receivedDrafts[r._id] ?? String(receivedQuantity)} onChange={e=>setReceivedDrafts(prev=>({...prev,[r._id]:e.target.value}))}/></label><button type="button" disabled={!Number.isSafeInteger(draft)||draft<=receivedQuantity||draft>=orderedQuantity} onClick={()=>onTransition(r._id,{status:'partially_received',receivedQuantity:draft,note:'Partial receipt recorded from the workspace'})}>Record partial</button><button type="button" disabled={receivedQuantity>=orderedQuantity} onClick={()=>onTransition(r._id,{status:'received',receivedQuantity:orderedQuantity,note:'All ordered units received'})}>Receive all</button></div>:'—'}</td>}</tr>;
-  })}</tbody></table></div>;
+function exportCsv(rows, columns, filename) {
+  if (!rows.length) return;
+  const escapeCell = (value) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+  const csv = [columns.map((column) => escapeCell(column.label)).join(',')]
+    .concat(rows.map((row) => columns.map((column) => escapeCell(column.value(row))).join(',')))
+    .join('\r\n');
+  const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+function InventoryTable({items,currency,onCreateRequest}) {
+  const [query,setQuery] = useState('');
+  const [stockFilter,setStockFilter] = useState('all');
+  const [sort,setSort] = useState('name');
+  const [selectedIds,setSelectedIds] = useState([]);
+  const [activeItem,setActiveItem] = useState(null);
+  const columns = [
+    {label:'SKU',value:(item)=>item.sku},{label:'Item',value:(item)=>item.name},
+    {label:'On hand',value:(item)=>item.onHand},{label:'Reorder point',value:(item)=>item.reorderPoint},
+    {label:'Unit cost',value:(item)=>item.unitCost},
+    {label:'Inventory value',value:(item)=>Number(item.onHand||0)*Number(item.unitCost||0)},
+    {label:'Status',value:(item)=>(item.lowStock ?? (Number(item.onHand)<=Number(item.reorderPoint)))?'Reorder suggested':'In range'}
+  ];
+  const visibleItems = useMemo(() => {
+    const needle=query.trim().toLowerCase();
+    const rows=items.filter((item)=>{
+      const low=item.lowStock ?? (Number(item.onHand)<=Number(item.reorderPoint));
+      const matchesSearch=!needle || [item.sku,item.name].some((value)=>String(value||'').toLowerCase().includes(needle));
+      const matchesStock=stockFilter==='all' || (stockFilter==='low'?low:!low);
+      return matchesSearch && matchesStock;
+    });
+    rows.sort((a,b)=>{
+      if(sort==='units') return Number(b.onHand||0)-Number(a.onHand||0);
+      if(sort==='low') return (Number(a.onHand||0)-Number(a.reorderPoint||0))-(Number(b.onHand||0)-Number(b.reorderPoint||0));
+      if(sort==='value') return Number(b.onHand||0)*Number(b.unitCost||0)-Number(a.onHand||0)*Number(a.unitCost||0);
+      return String(a.name||'').localeCompare(String(b.name||''));
+    });
+    return rows;
+  },[items,query,stockFilter,sort]);
+  const selectedItems=items.filter((item)=>selectedIds.includes(String(item._id)));
+  const allVisibleSelected=visibleItems.length>0 && visibleItems.every((item)=>selectedIds.includes(String(item._id)));
+  const lowCount=items.filter((item)=>item.lowStock ?? (Number(item.onHand)<=Number(item.reorderPoint))).length;
+  function toggleItem(id,checked){setSelectedIds((current)=>checked?Array.from(new Set([...current,id])):current.filter((value)=>value!==id));}
+  function toggleVisible(checked){
+    const ids=visibleItems.map((item)=>String(item._id));
+    setSelectedIds((current)=>checked?Array.from(new Set([...current,...ids])):current.filter((id)=>!ids.includes(id)));
+  }
+  function downloadRows(rows){exportCsv(rows,columns,'vendormesh-inventory.csv');}
+
+  return <>
+    <div className="vm-data-toolbar">
+      <label className="vm-data-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search SKU or item name…" aria-label="Search inventory"/></label>
+      <div className="vm-data-toolbar-actions">
+        <label className="vm-select-wrap"><span>Stock</span><select value={stockFilter} onChange={(event)=>setStockFilter(event.target.value)} aria-label="Filter stock status"><option value="all">All items</option><option value="low">Needs reorder ({lowCount})</option><option value="healthy">In range</option></select></label>
+        <label className="vm-select-wrap"><span>Sort</span><select value={sort} onChange={(event)=>setSort(event.target.value)} aria-label="Sort inventory"><option value="name">Name A–Z</option><option value="units">Most on hand</option><option value="low">Lowest stock gap</option><option value="value">Highest value</option></select></label>
+        <button className="secondary vm-export-button" type="button" onClick={()=>downloadRows(selectedItems.length?selectedItems:visibleItems)} disabled={!visibleItems.length}>{selectedItems.length?'Export selected':'Export view'} ↓</button>
+      </div>
+    </div>
+    {selectedIds.length>0 && <div className="vm-selection-bar" role="status"><span><b>{selectedItems.length}</b> selected</span><span className="vm-selection-hint">Selection is limited to these workspace records.</span><button type="button" onClick={()=>downloadRows(selectedItems)}>Export selected</button><button type="button" className="vm-clear-selection" onClick={()=>setSelectedIds([])}>Clear</button></div>}
+    <div className="table-scroll vm-interactive-table">
+      <table><thead><tr><th className="vm-check-cell"><input type="checkbox" checked={allVisibleSelected} onChange={(event)=>toggleVisible(event.target.checked)} aria-label="Select all visible inventory items"/></th><th>Item</th><th>SKU</th><th>On hand</th><th>Reorder point</th><th>Unit cost</th><th>Stock status</th></tr></thead>
+      <tbody>{visibleItems.map((item)=>{
+        const low=item.lowStock ?? (Number(item.onHand)<=Number(item.reorderPoint));
+        const checked=selectedIds.includes(String(item._id));
+        return <tr className="vm-animated-row" key={item._id}>
+          <td className="vm-check-cell"><input type="checkbox" checked={checked} onChange={(event)=>toggleItem(String(item._id),event.target.checked)} aria-label={'Select '+item.name}/></td>
+          <td><button className="vm-record-link" type="button" onClick={()=>setActiveItem(item)}>{item.name}</button><small className="table-sub">Open item details</small></td>
+          <td><code>{item.sku}</code></td><td>{Number(item.onHand||0).toLocaleString()}</td><td>{Number(item.reorderPoint||0).toLocaleString()}</td><td>{money(item.unitCost,currency)}</td>
+          <td><span className={'status '+(low?'status-low':'status-ok')}>{low?'Reorder suggested':'In range'}</span></td>
+        </tr>;
+      })}</tbody></table>
+      {visibleItems.length===0 && <div className="vm-table-empty"><span>⌕</span><b>No inventory matches this view</b><small>Try another search term or stock filter.</small><button type="button" className="secondary" onClick={()=>{setQuery('');setStockFilter('all');}}>Clear filters</button></div>}
+    </div>
+    <div className="vm-table-foot"><span>Showing {visibleItems.length} of {items.length} inventory records</span><span>{selectedItems.length?selectedItems.length+' selected':'Select rows to export a focused CSV'}</span></div>
+    <Sheet open={Boolean(activeItem)} onClose={()=>setActiveItem(null)} title={activeItem?.name||'Inventory item'} description={activeItem?'Inventory record · '+activeItem.sku:undefined} width="500px">
+      {activeItem && <div className="vm-record-inspector">
+        <div className="vm-inspector-status"><span className={'status '+((activeItem.lowStock ?? (Number(activeItem.onHand)<=Number(activeItem.reorderPoint)))?'status-low':'status-ok')}>{(activeItem.lowStock ?? (Number(activeItem.onHand)<=Number(activeItem.reorderPoint)))?'Reorder suggested':'In range'}</span><code>{activeItem.sku}</code></div>
+        <div className="vm-inspector-metrics">
+          <div><span>ON HAND</span><b>{Number(activeItem.onHand||0).toLocaleString()}</b></div>
+          <div><span>REORDER POINT</span><b>{Number(activeItem.reorderPoint||0).toLocaleString()}</b></div>
+          <div><span>UNIT COST</span><b>{money(activeItem.unitCost,currency)}</b></div>
+          <div><span>INVENTORY VALUE</span><b>{money(Number(activeItem.onHand||0)*Number(activeItem.unitCost||0),currency)}</b></div>
+        </div>
+        <div className="vm-inspector-section"><span>DEMAND &amp; COVERAGE</span><p>Configured daily demand: <b>{Number(activeItem.dailyDemand||0).toLocaleString()}</b></p><p>Estimated days of cover: <b>{activeItem.daysOfCover==null?'Not configured':activeItem.daysOfCover+' days'}</b></p></div>
+        {onCreateRequest && <button className="primary wide" type="button" onClick={()=>{const item=activeItem;setActiveItem(null);onCreateRequest(item);}}>Prepare purchase request <span aria-hidden="true">→</span></button>}
+      </div>}
+    </Sheet>
+  </>;
+}
+
+function RequestTable({requests,currency,onReview,onTransition,role}) {
+  const [receivedDrafts,setReceivedDrafts]=useState({});
+  const [query,setQuery]=useState('');
+  const [statusFilter,setStatusFilter]=useState('all');
+  const [sort,setSort]=useState('newest');
+  const [activeRequest,setActiveRequest]=useState(null);
+  const manager=['owner','admin'].includes(role);
+  const visibleRequests=useMemo(()=>{
+    const needle=query.trim().toLowerCase();
+    const rows=requests.filter((request)=>{
+      const matchesSearch=!needle || [request.itemName,request.sku,request.supplierId?.name,request.rationale].some((value)=>String(value||'').toLowerCase().includes(needle));
+      return matchesSearch && (statusFilter==='all' || request.status===statusFilter);
+    });
+    rows.sort((a,b)=>{
+      if(sort==='amount')return Number(b.totalCost||0)-Number(a.totalCost||0);
+      if(sort==='oldest')return new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime();
+      return new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime();
+    });
+    return rows;
+  },[requests,query,statusFilter,sort]);
+  const statusCounts=requests.reduce((counts,request)=>{counts[request.status]=(counts[request.status]||0)+1;return counts;},{});
+  return <>
+    <div className="vm-data-toolbar vm-request-toolbar">
+      <label className="vm-data-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search item, SKU or supplier…" aria-label="Search purchase requests"/></label>
+      <div className="vm-data-toolbar-actions">
+        <label className="vm-select-wrap"><span>Status</span><select value={statusFilter} onChange={(event)=>setStatusFilter(event.target.value)} aria-label="Filter request status"><option value="all">All ({requests.length})</option>
+          {['pending','approved','rejected','ordered','partially_received','received','cancelled'].filter((status)=>statusCounts[status]).map((status)=><option key={status} value={status}>{status.replaceAll('_',' ')} ({statusCounts[status]})</option>)}
+        </select></label>
+        <label className="vm-select-wrap"><span>Sort</span><select value={sort} onChange={(event)=>setSort(event.target.value)} aria-label="Sort purchase requests"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Highest value</option></select></label>
+      </div>
+    </div>
+    <div className="table-scroll vm-interactive-table">
+      <table><thead><tr><th>Request</th><th>Supplier</th><th>Qty</th><th>Total</th><th>Created</th><th>Status</th>{onReview&&<th>Review</th>}{onTransition&&<th>Fulfillment</th>}</tr></thead>
+      <tbody>{visibleRequests.map((request)=>{
+        const orderedQuantity=Number(request.orderedQuantity||request.quantity);
+        const receivedQuantity=Number(request.receivedQuantity||0);
+        const draft=Number(receivedDrafts[request._id] ?? receivedQuantity);
+        const canRecordReceipt=['ordered','partially_received'].includes(request.status)&&['owner','admin','staff'].includes(role);
+        return <tr className="vm-animated-row" key={request._id}>
+          <td><button className="vm-record-link" type="button" onClick={()=>setActiveRequest(request)}>{request.itemName}</button><small className="table-sub">{request.sku}{request.rationale?' · '+request.rationale:''}</small></td>
+          <td>{request.supplierId?.name||'Supplier'}</td><td>{request.quantity}<small className="table-sub">Received {receivedQuantity} / {orderedQuantity}</small></td><td>{money(request.totalCost,request.currency||currency)}</td><td>{new Date(request.createdAt).toLocaleDateString()}</td>
+          <td><span className={'status status-'+request.status}>{request.status.replaceAll('_',' ')}</span></td>
+          {onReview&&<td>{request.status==='pending'&&manager?<div className="review-actions"><button type="button" onClick={()=>onReview(request._id,'approved')}>Approve</button><button type="button" onClick={()=>onReview(request._id,'rejected')}>Reject</button></div>:'—'}</td>}
+          {onTransition&&<td>{request.status==='approved'&&manager?<button type="button" className="secondary" onClick={()=>onTransition(request._id,{status:'ordered',orderedQuantity:request.quantity,note:'Marked ordered from the workspace'})}>Mark ordered</button>:canRecordReceipt?<div className="fulfillment-actions"><label>Total received<input aria-label={'Total received for '+request.itemName} type="number" min={receivedQuantity+1} max={orderedQuantity} step="1" value={receivedDrafts[request._id] ?? String(receivedQuantity)} onChange={(event)=>setReceivedDrafts((previous)=>({...previous,[request._id]:event.target.value}))}/></label><button type="button" disabled={!Number.isSafeInteger(draft)||draft<=receivedQuantity||draft>=orderedQuantity} onClick={()=>onTransition(request._id,{status:'partially_received',receivedQuantity:draft,note:'Partial receipt recorded from the workspace'})}>Record partial</button><button type="button" disabled={receivedQuantity>=orderedQuantity} onClick={()=>onTransition(request._id,{status:'received',receivedQuantity:orderedQuantity,note:'All ordered units received'})}>Receive all</button></div>:'—'}</td>}
+        </tr>;
+      })}</tbody></table>
+      {visibleRequests.length===0 && <div className="vm-table-empty"><span>⌕</span><b>No requests match this view</b><small>Try another search term or status filter.</small><button type="button" className="secondary" onClick={()=>{setQuery('');setStatusFilter('all');}}>Clear filters</button></div>}
+    </div>
+    <div className="vm-table-foot"><span>Showing {visibleRequests.length} of {requests.length} requests</span><span>{statusCounts.pending||0} awaiting review</span></div>
+    <Sheet open={Boolean(activeRequest)} onClose={()=>setActiveRequest(null)} title={activeRequest?.itemName||'Purchase request'} description={activeRequest?'Request record · '+activeRequest.sku:undefined} width="500px">
+      {activeRequest && <div className="vm-record-inspector">
+        <div className="vm-inspector-status"><span className={'status status-'+activeRequest.status}>{activeRequest.status.replaceAll('_',' ')}</span><code>{activeRequest.sku}</code></div>
+        <div className="vm-inspector-metrics">
+          <div><span>REQUESTED QTY</span><b>{Number(activeRequest.quantity||0).toLocaleString()}</b></div>
+          <div><span>ORDERED QTY</span><b>{Number(activeRequest.orderedQuantity||activeRequest.quantity||0).toLocaleString()}</b></div>
+          <div><span>RECEIVED QTY</span><b>{Number(activeRequest.receivedQuantity||0).toLocaleString()}</b></div>
+          <div><span>REQUEST TOTAL</span><b>{money(activeRequest.totalCost,activeRequest.currency||currency)}</b></div>
+        </div>
+        <div className="vm-inspector-section"><span>SUPPLIER &amp; TIMING</span><p>Supplier: <b>{activeRequest.supplierId?.name||'Not linked'}</b></p><p>Created: <b>{new Date(activeRequest.createdAt).toLocaleString()}</b></p></div>
+        <div className="vm-inspector-section"><span>BUSINESS RATIONALE</span><p>{activeRequest.rationale||'No rationale was added to this request.'}</p></div>
+        <p className="vm-inspector-note">Approval and fulfillment actions remain in the table, where each operation is explicit.</p>
+      </div>}
+    </Sheet>
+  </>;
+}
+
+function SupplierDirectory({suppliers}) {
+  const [query,setQuery]=useState('');
+  const [sort,setSort]=useState('name');
+  const [activeSupplier,setActiveSupplier]=useState(null);
+  const filtered=useMemo(()=>{
+    const needle=query.trim().toLowerCase();
+    const rows=suppliers.filter((supplier)=>!needle || [supplier.name,supplier.email,supplier.paymentTerms].some((value)=>String(value||'').toLowerCase().includes(needle)));
+    rows.sort((a,b)=>sort==='reliability'?Number(b.reliabilityScore||0)-Number(a.reliabilityScore||0):sort==='lead'?Number(a.leadTimeDays||0)-Number(b.leadTimeDays||0):String(a.name||'').localeCompare(String(b.name||'')));
+    return rows;
+  },[suppliers,query,sort]);
+  return <>
+    <div className="vm-data-toolbar">
+      <label className="vm-data-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search suppliers or contact…" aria-label="Search suppliers"/></label>
+      <div className="vm-data-toolbar-actions"><label className="vm-select-wrap"><span>Sort</span><select value={sort} onChange={(event)=>setSort(event.target.value)} aria-label="Sort suppliers"><option value="name">Name A–Z</option><option value="reliability">Highest reliability</option><option value="lead">Shortest lead time</option></select></label></div>
+    </div>
+    <div className="supplier-grid">
+      {filtered.map((supplier)=><button type="button" className="supplier-card supplier-card-button" key={supplier._id} onClick={()=>setActiveSupplier(supplier)} aria-label={'View supplier details for '+supplier.name}>
+        <div className="supplier-avatar">{supplier.name.slice(0,1).toUpperCase()}</div>
+        <div className="supplier-info"><h3>{supplier.name}</h3><p>{supplier.email||'No contact email added'}</p><div className="supplier-meta"><span>{supplier.leadTimeDays} day lead time</span><span>{supplier.reliabilityScore}% reliability</span></div><small>{supplier.paymentTerms||'Payment terms not set'}</small></div>
+        <span className="supplier-card-open" aria-hidden="true">↗</span>
+      </button>)}
+    </div>
+    {filtered.length===0 && <div className="vm-table-empty"><span>⌕</span><b>No suppliers match this search</b><small>Try another supplier name or contact term.</small><button type="button" className="secondary" onClick={()=>setQuery('')}>Clear search</button></div>}
+    <div className="vm-table-foot"><span>Showing {filtered.length} of {suppliers.length} suppliers</span><span>Choose a supplier card to inspect its record</span></div>
+    <Sheet open={Boolean(activeSupplier)} onClose={()=>setActiveSupplier(null)} title={activeSupplier?.name||'Supplier details'} description="Supplier directory record" width="460px">
+      {activeSupplier && <div className="vm-record-inspector">
+        <div className="vm-supplier-profile"><span className="supplier-avatar">{activeSupplier.name.slice(0,1).toUpperCase()}</span><div><b>{activeSupplier.name}</b><small>{activeSupplier.email||'No contact email added'}</small></div></div>
+        <div className="vm-inspector-metrics">
+          <div><span>LEAD TIME</span><b>{Number(activeSupplier.leadTimeDays||0)} days</b></div><div><span>RELIABILITY</span><b>{Number(activeSupplier.reliabilityScore||0)}%</b></div>
+          <div><span>STATUS</span><b>{activeSupplier.active===false?'Inactive':'Active'}</b></div><div><span>PAYMENT TERMS</span><b>{activeSupplier.paymentTerms||'Not set'}</b></div>
+        </div>
+        <div className="vm-inspector-section"><span>SUPPLIER CONTEXT</span><p>Review the stored lead-time and reliability details when preparing a purchase request. These values are workspace records, not an external supplier verification.</p></div>
+      </div>}
+    </Sheet>
+  </>;
+}
+
