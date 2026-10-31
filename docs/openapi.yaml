@@ -482,6 +482,76 @@ paths:
         '409': { description: No provider credential has been configured for this workspace }
         '429': { $ref: '#/components/responses/RateLimited' }
         '502': { description: Provider request failed; no raw provider response is returned }
+  /api/workspace/goods-receipts:
+    get:
+      tags: [Purchasing]
+      summary: List the latest goods receipt notes for the active workspace
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+      responses:
+        '200':
+          description: Tenant-scoped goods receipt history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/GoodsReceipt' } }
+                  limit: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/workspace/goods-receipts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Purchase order id
+        schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+    get:
+      tags: [Purchasing]
+      summary: List receipt notes for one purchase order in the active workspace
+      responses:
+        '200':
+          description: Receipt history for the tenant-scoped purchase order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/GoodsReceipt' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Purchasing]
+      summary: Record a goods receipt for an open purchase order (owner/admin/staff)
+      description: Records expected, delivered, accepted, damaged and missing quantities. Only accepted units increase inventory. Receipt, purchase order counters, linked request status and inventory stock are updated inside a MongoDB transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedQuantity, deliveredQuantity, acceptedQuantity, damagedQuantity]
+              properties:
+                expectedQuantity: { type: integer, minimum: 1, maximum: 1000000 }
+                deliveredQuantity: { type: integer, minimum: 0, maximum: 1000000 }
+                acceptedQuantity: { type: integer, minimum: 0, maximum: 1000000 }
+                damagedQuantity: { type: integer, minimum: 0, maximum: 1000000 }
+                discrepancyNotes: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: GRN recorded; accepted goods added to available stock
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoodsReceipt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/workspace/purchase-orders:
     get:
       tags: [Purchasing]
@@ -875,7 +945,47 @@ components:
               quantity: { type: integer }
               unitCost: { type: number }
               totalCost: { type: number }
-        currency: { type: string, pattern: '^[A-Z]{3}      type: object
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        total: { type: number }
+        receivedQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GoodsReceipt:
+      type: object
+      properties:
+        _id: { type: string }
+        receiptNumber: { type: string }
+        purchaseOrderId: { type: string }
+        purchaseRequestId: { type: string }
+        inventoryItemId: { type: string }
+        poNumber: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        expectedQuantity: { type: integer }
+        deliveredQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        legacyAcceptedQuantity: { type: integer, description: Earlier request-only receipts reconciled as accepted stock }
+        missingQuantity: { type: integer }
+        discrepancyNotes: { type: string }
+        receivedBy: { type: string }
+        receivedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Invoice:
+      type: object
       properties:
         _id: { type: string }
         purchaseRequestId: { type: string }

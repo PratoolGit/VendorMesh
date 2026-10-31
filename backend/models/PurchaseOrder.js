@@ -29,6 +29,10 @@ const PurchaseOrderSchema = new mongoose.Schema({
   expectedDeliveryDate: { type: Date, required: true },
   paymentTerms: { type: String, required: true, trim: true, maxlength: 120 },
   notes: { type: String, trim: true, maxlength: 2000, default: '' },
+  receivedQuantity: { type: Number, min: 0, max: 1000000, default: 0 },
+  acceptedQuantity: { type: Number, min: 0, max: 1000000, default: 0 },
+  damagedQuantity: { type: Number, min: 0, max: 1000000, default: 0 },
+  receivedAt: { type: Date, default: null },
   status: { type: String, enum: ['issued', 'acknowledged', 'partially_received', 'received', 'cancelled'], default: 'issued', index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true, versionKey: false });

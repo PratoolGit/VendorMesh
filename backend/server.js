@@ -24,6 +24,7 @@ import { createWorkspaceAPIKeysRouter } from './routes/workspaceAPIKeys.js';
 import { createPublicAPIRouter } from './routes/publicAPI.js';
 import { createWorkspaceInvoicesRouter } from './routes/workspaceInvoices.js';
 import { createWorkspacePurchaseOrdersRouter } from './routes/workspacePurchaseOrders.js';
+import { createWorkspaceGoodsReceiptsRouter } from './routes/workspaceGoodsReceipts.js';
 import { createWorkspaceReconciliationRouter } from './routes/workspaceReconciliation.js';
 import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { validatePurchaseTransition } from './services/purchaseWorkflow.js';
@@ -218,6 +219,7 @@ app.use('/api/workspace/api-keys', createWorkspaceAPIKeysRouter({ requireSession
 app.use('/api/v1', createPublicAPIRouter());
 app.use('/api/workspace/invoices', createWorkspaceInvoicesRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/purchase-orders', createWorkspacePurchaseOrdersRouter({ requireSession, requireWorkspaceRole }));
+app.use('/api/workspace/goods-receipts', createWorkspaceGoodsReceiptsRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/reconciliation', createWorkspaceReconciliationRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
@@ -371,7 +373,7 @@ app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireW
 
 app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid purchase request id.' });
-  if (req.body?.status === 'ordered') return res.status(409).json({ error: 'Issue a formal purchase order from the Purchase Orders page instead of directly marking the request ordered.' });
+  if (['ordered', 'partially_received', 'received'].includes(req.body?.status)) return res.status(409).json({ error: 'Use the Purchase Orders and Goods Receipts workflow to issue orders and record delivered quantities.' });
   const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) }).lean();
   if (!request) return res.status(404).json({ error: 'Purchase request not found in this workspace.' });
   const now = new Date();

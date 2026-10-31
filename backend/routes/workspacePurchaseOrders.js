@@ -28,7 +28,22 @@ export function createWorkspacePurchaseOrdersRouter({ requireSession, requireWor
         }
         filter.status = req.query.status;
       }
-      const data = await PurchaseOrder.find(filter).sort({ issuedAt: -1, _id: -1 }).limit(limit).lean();
+      const orders = await PurchaseOrder.find(filter).sort({ issuedAt: -1, _id: -1 }).limit(limit).lean();
+      const requestIds = orders.map(order => order.purchaseRequestId).filter(Boolean);
+      const requests = requestIds.length
+        ? await PurchaseRequest.find({ _id: { $in: requestIds }, companyId }).select('_id receivedQuantity').lean()
+        : [];
+      const receivedByRequest = new Map(requests.map(request => [String(request._id), Number(request.receivedQuantity || 0)]));
+      const data = orders.map(order => {
+        const storedReceived = Number(order.receivedQuantity || 0);
+        const requestReceived = receivedByRequest.get(String(order.purchaseRequestId)) || 0;
+        const legacyAccepted = Math.max(0, requestReceived - storedReceived);
+        return {
+          ...order,
+          receivedQuantity: storedReceived + legacyAccepted,
+          acceptedQuantity: Number(order.acceptedQuantity || 0) + legacyAccepted
+        };
+      });
       return res.json({ data, limit });
     } catch (error) { return next(error); }
   });

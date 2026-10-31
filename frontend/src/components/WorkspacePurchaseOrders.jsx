@@ -25,7 +25,7 @@ function makeForm(requestId, requests, suppliers) {
   };
 }
 
-export default function WorkspacePurchaseOrders({ api, requests = [], suppliers = [], role, currency = 'USD', initialRequestId = '', onCreated }) {
+export default function WorkspacePurchaseOrders({ api, requests = [], suppliers = [], role, currency = 'USD', initialRequestId = '', onCreated, onRecordReceipt }) {
   const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(() => makeForm(initialRequestId, requests, suppliers));
   const [loading, setLoading] = useState(true);
@@ -138,15 +138,16 @@ export default function WorkspacePurchaseOrders({ api, requests = [], suppliers 
     <section className="table-card">
       <div className="po-table-heading"><div><h3>Recent purchase orders</h3><p className="muted">PO records remain linked to their original purchase request.</p></div></div>
       <div className="table-scroll vm-interactive-table" role="region" aria-label="Purchase orders table" tabIndex="0">
-        <table aria-label="Purchase orders"><thead><tr><th>PO number</th><th>Supplier / item</th><th>Quantity</th><th>Total</th><th>Expected delivery</th><th>Status</th><th>Issued</th><th>Document</th></tr></thead><tbody>
+        <table aria-label="Purchase orders"><thead><tr><th>PO number</th><th>Supplier / item</th><th>Quantity</th><th>Total</th><th>Expected delivery</th><th>Status</th><th>Issued</th><th>Receiving</th><th>Document</th></tr></thead><tbody>
           {orders.map(order => <tr key={order._id}>
             <td data-label="PO number"><b>{order.poNumber}</b><small className="table-sub">{String(order.purchaseRequestId || '').slice(-8).toUpperCase()}</small></td>
             <td data-label="Supplier / item"><b>{order.supplierSnapshot?.name || 'Supplier'}</b><small className="table-sub">{order.lineItems?.[0]?.itemName || 'Purchase item'} · {order.lineItems?.[0]?.sku || ''}</small></td>
-            <td data-label="Quantity">{Number(order.lineItems?.reduce((sum, line) => sum + Number(line.quantity || 0), 0) || 0).toLocaleString()}</td>
+            <td data-label="Quantity">{Number(order.lineItems?.reduce((sum, line) => sum + Number(line.quantity || 0), 0) || 0).toLocaleString()}<small className="table-sub">Delivered {Number(order.receivedQuantity || 0)} · Accepted {Number(order.acceptedQuantity || 0)} · Damaged {Number(order.damagedQuantity || 0)}</small></td>
             <td data-label="Total">{money(order.total, order.currency || currency)}</td>
             <td data-label="Expected delivery">{displayDate(order.expectedDeliveryDate)}</td>
             <td data-label="Status"><span className={'status status-' + order.status}>{order.status.replaceAll('_', ' ')}</span></td>
             <td data-label="Issued">{displayDate(order.issuedAt)}</td>
+            <td data-label="Receiving">{['issued', 'acknowledged', 'partially_received'].includes(order.status) && Number(order.receivedQuantity || 0) < Number(order.lineItems?.[0]?.quantity || 0) ? <button type="button" className="secondary po-print-button" onClick={() => onRecordReceipt?.(order)}>Record GRN</button> : '—'}</td>
             <td data-label="Document"><button type="button" className="secondary po-print-button" onClick={() => setPrintOrder(order)}>Print / Save PDF</button></td>
           </tr>)}
         </tbody></table>
