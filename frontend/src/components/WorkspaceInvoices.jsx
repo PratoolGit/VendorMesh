@@ -108,7 +108,7 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
     </form>
     <section className="table-card">
       <div className="invoice-table-heading"><div><h3>Recent invoices</h3><p className="muted">Owner/admins can approve or reject pending records.</p></div></div>
-      <div className="table-scroll"><table><thead><tr><th>Invoice</th><th>Supplier / item</th><th>Invoice date</th><th>Order total</th><th>Invoice total</th><th>Difference</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      <div className="table-scroll" role="region" aria-label="Invoice records table" tabIndex="0"><table aria-label="Invoice records"><thead><tr><th>Invoice</th><th>Supplier / item</th><th>Invoice date</th><th>Order total</th><th>Invoice total</th><th>Difference</th><th>Status</th><th>Action</th></tr></thead><tbody>
         {invoices.map(invoice => {
           const difference = Math.round((Number(invoice.total)-Number(invoice.purchaseRequestTotal))*100)/100;
           const mismatch = Math.abs(difference)>0.01;

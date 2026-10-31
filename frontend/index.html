@@ -7,13 +7,36 @@
     <title>VendorMesh — Procurement &amp; Inventory Workspace</title>
     <meta name="description" content="Manage inventory, suppliers, purchase approvals and pricing scenarios in one procurement workspace." />
     <meta name="theme-color" content="#09090b" />
-    <link rel="icon" type="image/svg+xml" href="/vendormesh-mark.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/vendormesh-mark.svg" />    <style>
+      :root{color-scheme:dark;background:#09090b;color:#f4f4f5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      html,body{min-height:100%;margin:0;background:#09090b}
+      .vm-boot{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 75% 10%,rgba(99,102,241,.14),transparent 38%),#09090b}
+      .vm-boot__panel{width:min(680px,100%);padding:clamp(22px,4vw,36px);border:1px solid rgba(255,255,255,.09);border-radius:18px;background:rgba(18,18,22,.88);box-shadow:0 24px 80px rgba(0,0,0,.28)}
+      .vm-boot__brand{display:flex;align-items:center;gap:12px;margin-bottom:28px;font-size:14px;font-weight:750;letter-spacing:-.02em}
+      .vm-boot__mark{width:34px;height:34px;border-radius:10px;background:rgba(99,102,241,.16);display:grid;place-items:center;color:#c7d2fe;font-weight:800}
+      .vm-boot__eyebrow{margin:0 0 9px;color:#a5b4fc;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+      .vm-boot__title{margin:0;color:#f4f4f5;font-size:clamp(22px,4vw,30px);letter-spacing:-.04em}
+      .vm-boot__copy{margin:10px 0 26px;color:#a1a1aa;font-size:13px;line-height:1.7}
+      .vm-boot__lines{display:grid;gap:10px}
+      .vm-boot__line{height:10px;border-radius:99px;background:linear-gradient(90deg,#27272f 20%,#3b3b49 48%,#27272f 75%);background-size:220% 100%;animation:vm-boot-shimmer 1.5s ease-in-out infinite}
+      .vm-boot__line:nth-child(1){width:92%}.vm-boot__line:nth-child(2){width:74%}.vm-boot__line:nth-child(3){width:58%}
+      @keyframes vm-boot-shimmer{to{background-position:-220% 0}}
+      @media(prefers-reduced-motion:reduce){.vm-boot__line{animation:none;background:#27272f}}
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="vm-boot" role="status" aria-label="Loading VendorMesh">
+        <div class="vm-boot__panel">
+          <div class="vm-boot__brand"><span class="vm-boot__mark" aria-hidden="true">V</span><span>VendorMesh</span></div>
+          <p class="vm-boot__eyebrow">Procurement workspace</p>
+          <h1 class="vm-boot__title">Bringing your workspace into focus.</h1>
+          <p class="vm-boot__copy">Preparing inventory, suppliers and purchasing tools.</p>
+          <div class="vm-boot__lines" aria-hidden="true"><span class="vm-boot__line"></span><span class="vm-boot__line"></span><span class="vm-boot__line"></span></div>
+        </div>
+      </div>
+    </div>
+    <noscript><p style="margin:24px;padding:18px;border:1px solid #52525b;border-radius:12px;color:#f4f4f5;background:#18181b">VendorMesh requires JavaScript to load the procurement workspace. Please enable JavaScript and reload.</p></noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

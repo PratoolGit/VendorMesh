@@ -29,7 +29,7 @@ export default function WorkspaceReconciliation({ api }) {
       </div>
       <section className="table-card">
         <div className="invoice-table-heading"><div><h3>Reconciliation signals</h3><p className="muted">These are discrepancy checks, not fraud conclusions. No records are changed.</p></div></div>
-        <div className="table-scroll"><table><thead><tr><th>Priority</th><th>Signal</th><th>Purchase request</th><th>Invoice</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>
+        <div className="table-scroll" role="region" aria-label="Reconciliation signals table" tabIndex="0"><table aria-label="Reconciliation signals"><thead><tr><th>Priority</th><th>Signal</th><th>Purchase request</th><th>Invoice</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>
           {(result.signals||[]).map(signal=>{
             const evidence=signal.evidence||[];
             const details=[];
