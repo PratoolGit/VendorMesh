@@ -14,6 +14,7 @@ import Company from './models/Company.js';
 import InventoryItem from './models/InventoryItem.js';
 import Supplier from './models/Supplier.js';
 import PurchaseRequest from './models/PurchaseRequest.js';
+import PurchaseOrder from './models/PurchaseOrder.js';
 import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
@@ -22,6 +23,7 @@ import { createWorkspaceAIRouter } from './routes/workspaceAI.js';
 import { createWorkspaceAPIKeysRouter } from './routes/workspaceAPIKeys.js';
 import { createPublicAPIRouter } from './routes/publicAPI.js';
 import { createWorkspaceInvoicesRouter } from './routes/workspaceInvoices.js';
+import { createWorkspacePurchaseOrdersRouter } from './routes/workspacePurchaseOrders.js';
 import { createWorkspaceReconciliationRouter } from './routes/workspaceReconciliation.js';
 import { normalizeSupplierCreate, normalizeSupplierPatch, calculatePurchaseTotal } from './services/procurementValidation.js';
 import { validatePurchaseTransition } from './services/purchaseWorkflow.js';
@@ -215,6 +217,7 @@ app.use('/api/workspace/ai', createWorkspaceAIRouter({ requireSession, requireWo
 app.use('/api/workspace/api-keys', createWorkspaceAPIKeysRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/v1', createPublicAPIRouter());
 app.use('/api/workspace/invoices', createWorkspaceInvoicesRouter({ requireSession, requireWorkspaceRole }));
+app.use('/api/workspace/purchase-orders', createWorkspacePurchaseOrdersRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/reconciliation', createWorkspaceReconciliationRouter({ requireSession, requireWorkspaceRole }));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
@@ -368,6 +371,7 @@ app.post('/api/workspace/purchase-requests/:id/review', requireSession, requireW
 
 app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requireWorkspaceRole('owner', 'admin', 'staff'), wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid purchase request id.' });
+  if (req.body?.status === 'ordered') return res.status(409).json({ error: 'Issue a formal purchase order from the Purchase Orders page instead of directly marking the request ordered.' });
   const request = await PurchaseRequest.findOne({ _id: req.params.id, ...workspace(req) }).lean();
   if (!request) return res.status(404).json({ error: 'Purchase request not found in this workspace.' });
   const now = new Date();
@@ -384,6 +388,14 @@ app.post('/api/workspace/purchase-requests/:id/transition', requireSession, requ
     { new: true, runValidators: true }
   ).lean();
   if (!updated) return res.status(409).json({ error: 'This purchase request changed while you were updating it. Refresh and try again.' });
+  const purchaseOrderStatus = ({ partially_received: 'partially_received', received: 'received', cancelled: 'cancelled' })[updated.status];
+  if (purchaseOrderStatus) {
+    await PurchaseOrder.findOneAndUpdate(
+      { companyId: new mongoose.Types.ObjectId(req.session.companyId), purchaseRequestId: updated._id, status: { $nin: ['received', 'cancelled'] } },
+      { $set: { status: purchaseOrderStatus } },
+      { new: true }
+    );
+  }
   const auditStatus = validated.patch.status === 'partially_received' ? 'receiving' : validated.patch.status;
   req.auditAction = 'purchase.' + auditStatus;
   res.json(updated);

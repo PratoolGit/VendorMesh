@@ -482,6 +482,58 @@ paths:
         '409': { description: No provider credential has been configured for this workspace }
         '429': { $ref: '#/components/responses/RateLimited' }
         '502': { description: Provider request failed; no raw provider response is returned }
+  /api/workspace/purchase-orders:
+    get:
+      tags: [Purchasing]
+      summary: List the latest purchase orders for the active workspace
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+      responses:
+        '200':
+          description: Tenant-scoped purchase order register
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PurchaseOrder' } }
+                  limit: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/workspace/purchase-orders/from-request/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Issue a formal purchase order from an approved request (owner/admin)
+      description: Creates one workspace-unique PO per purchase request, snapshots supplier and buyer details, and atomically advances the request to ordered using a compare-and-set update. Does not email the supplier or initiate payment.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedDeliveryDate: { type: string, format: date }
+                paymentTerms: { type: string, minLength: 1, maxLength: 120 }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        '201':
+          description: Purchase order issued and linked request moved to ordered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PurchaseOrder' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/workspace/invoices:
     get:
       tags: [Purchasing]
@@ -796,6 +848,147 @@ components:
         Retry-After:
           schema: { type: integer }
   schemas:
+    PurchaseOrder:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        poNumber: { type: string }
+        buyerSnapshot:
+          type: object
+          properties:
+            companyName: { type: string }
+        supplierId: { type: string }
+        supplierSnapshot:
+          type: object
+          properties:
+            name: { type: string }
+            email: { type: string }
+        lineItems:
+          type: array
+          items:
+            type: object
+            properties:
+              inventoryItemId: { type: string }
+              sku: { type: string }
+              itemName: { type: string }
+              quantity: { type: integer }
+              unitCost: { type: number }
+              totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
+ }
+        subtotal: { type: number }
+        total: { type: number }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     Invoice:
       type: object
       properties:

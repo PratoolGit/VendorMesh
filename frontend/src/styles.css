@@ -1343,3 +1343,50 @@ button:active:not(:disabled){transition-duration:.06s}
   .vm-interactive-table tbody td[data-label="Review"],.vm-interactive-table tbody td[data-label="Fulfillment"],.vm-interactive-table tbody td[data-label="Action"]{grid-column:1}
   .draft-hint{margin-top:-10px}
 }
+
+
+/* Formal purchase orders */
+.workspace-purchase-orders{display:grid;gap:14px}
+.po-explainer{border:1px solid #dce6f6;border-radius:10px;padding:14px 16px;background:#f8fbff;color:#33435e}
+.po-explainer strong{display:block;font-size:12px;margin-bottom:4px}
+.po-explainer p{margin:0;color:#63718a;font-size:11px;line-height:1.7}
+.po-metrics{margin:0}
+.po-create-form{margin:0}
+.po-create-form h3{margin-bottom:7px}
+.po-notes-field{grid-column:1/-1}
+.po-order-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:13px;border:1px solid var(--line);border-radius:9px;background:#fafbfd;margin:0 0 16px}
+.po-order-summary div{min-width:0}
+.po-order-summary span{display:block;color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.09em;margin-bottom:4px}
+.po-order-summary strong{display:block;font-size:11px;overflow-wrap:anywhere}
+.po-table-heading{padding:17px 18px 10px}
+.po-table-heading h3{margin:0 0 4px}
+.po-table-heading p{margin:0;font-size:11px}
+.po-print-button{font-size:10px;padding:7px 9px}
+.po-empty{padding:10px 18px 20px;font-size:11px}
+.vm-po-print-document{display:none}
+@media(max-width:760px){.po-order-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{
+  @page{size:A4;margin:14mm}
+  html.vm-printing-po body *{visibility:hidden!important}
+  html.vm-printing-po .vm-po-print-document,html.vm-printing-po .vm-po-print-document *{visibility:visible!important}
+  html.vm-printing-po .vm-po-print-document{display:block!important;position:absolute;inset:0 auto auto 0;width:100%;padding:0;background:#fff!important;color:#172335!important;font:11px/1.6 Arial,sans-serif}
+  .vm-po-print-header{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #172335;padding-bottom:18px;margin-bottom:24px}
+  .vm-po-print-header span,.vm-po-print-header p,.vm-po-print-number span{display:block;color:#667487;font-size:9px;margin:2px 0}
+  .vm-po-print-header h1{font-size:23px;letter-spacing:.04em;margin:9px 0 3px}
+  .vm-po-print-number{text-align:right;display:grid;align-content:start;gap:4px}
+  .vm-po-print-number b{font-size:17px}
+  .vm-po-print-parties{display:grid;grid-template-columns:1fr 1fr;gap:25px;margin:22px 0 28px}
+  .vm-po-print-parties section>span{font-size:9px;font-weight:800;color:#667487;letter-spacing:.1em}
+  .vm-po-print-parties h2{font-size:14px;margin:5px 0}
+  .vm-po-print-parties p{margin:0;color:#667487}
+  .vm-po-print-document table{min-width:0;width:100%;border-collapse:collapse}
+  .vm-po-print-document th{background:#f1f3f6!important;color:#344256!important;font-size:8px;padding:9px;border:1px solid #dce2e9}
+  .vm-po-print-document td{padding:10px 9px;border:1px solid #e1e5eb;color:#172335;font-size:10px}
+  .vm-po-print-total{display:flex;justify-content:flex-end;align-items:center;gap:26px;margin:18px 0 28px}
+  .vm-po-print-total span{font-size:10px;font-weight:800}
+  .vm-po-print-total strong{font-size:18px}
+  .vm-po-print-terms{border-top:1px solid #dce2e9;padding-top:14px}
+  .vm-po-print-terms h3{font-size:10px;margin:12px 0 4px}
+  .vm-po-print-terms p{margin:0;color:#344256}
+  .vm-po-print-footer{display:flex;justify-content:space-between;gap:15px;border-top:1px solid #dce2e9;padding-top:12px;margin-top:55px;color:#667487;font-size:8px}
+}
