@@ -8,7 +8,7 @@ function money(value, currency = 'USD') {
 }
 function Tile({ label, value, note }) { return <article className="metric-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>; }
 
-export default function WorkspaceInvoices({ api, role, currency: defaultCurrency = 'USD' }) {
+export default function WorkspaceInvoices({ api, role, currency: defaultCurrency = 'USD', workspaceId }) {
   const [requests, setRequests] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [form, setForm] = useState({ purchaseRequestId: '', invoiceNumber: '', invoiceDate: today(), dueDate: '', currency: defaultCurrency, subtotal: '', taxTotal: '0' });
@@ -16,6 +16,8 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [draftReady, setDraftReady] = useState(false);
+  const draftKey = workspaceId ? 'vendormesh.draft.' + workspaceId + '.invoice' : '';
   const manager = ['owner', 'admin'].includes(role);
   const eligible = useMemo(() => requests.filter(item => eligibleStatuses.has(item.status)), [requests]);
   const selected = eligible.find(item => item._id === form.purchaseRequestId) || null;
@@ -41,6 +43,24 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
     } catch (err) { setError(err.message || 'Unable to load invoices.'); }
     finally { setLoading(false); }
   }
+
+  useEffect(() => {
+    if (!draftKey) { setDraftReady(false); return; }
+    try {
+      const stored = sessionStorage.getItem(draftKey);
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        setForm(current => Object.fromEntries(Object.keys(current).map(key => [key, typeof parsed[key] === 'string' ? parsed[key] : current[key]])));
+      }
+    } catch { /* Ignore invalid or unavailable tab drafts. */ }
+    setDraftReady(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !draftReady) return;
+    try { sessionStorage.setItem(draftKey, JSON.stringify(form)); }
+    catch { /* Draft recovery is best-effort when tab storage is unavailable. */ }
+  }, [draftKey, draftReady, form]);
 
   useEffect(() => { load(); }, [api, defaultCurrency]);
 
@@ -88,7 +108,7 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
       <Tile label="Eligible purchases" value={eligible.length} note="Approved or fulfilled requests"/>
     </div>
     <form className="form-card invoice-create-form" onSubmit={createInvoice}>
-      <h3>Record an invoice</h3>
+      <h3>Record an invoice</h3><p className="draft-hint">Drafts auto-save in this tab for this workspace and are cleared when you sign out.</p>
       {eligible.length === 0 && <p className="inline-hint">No approved or fulfilled purchase requests are available. Submit and approve a purchase request first.</p>}
       <div className="fields invoice-fields">
         <label>Purchase request<select required value={form.purchaseRequestId} disabled={busy || eligible.length===0} onChange={event => {
@@ -108,19 +128,19 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
     </form>
     <section className="table-card">
       <div className="invoice-table-heading"><div><h3>Recent invoices</h3><p className="muted">Owner/admins can approve or reject pending records.</p></div></div>
-      <div className="table-scroll" role="region" aria-label="Invoice records table" tabIndex="0"><table aria-label="Invoice records"><thead><tr><th>Invoice</th><th>Supplier / item</th><th>Invoice date</th><th>Order total</th><th>Invoice total</th><th>Difference</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      <div className="table-scroll vm-interactive-table" role="region" aria-label="Invoice records table" tabIndex="0"><table aria-label="Invoice records"><thead><tr><th>Invoice</th><th>Supplier / item</th><th>Invoice date</th><th>Order total</th><th>Invoice total</th><th>Difference</th><th>Status</th><th>Action</th></tr></thead><tbody>
         {invoices.map(invoice => {
           const difference = Math.round((Number(invoice.total)-Number(invoice.purchaseRequestTotal))*100)/100;
           const mismatch = Math.abs(difference)>0.01;
           return <tr key={invoice._id}>
-            <td><b>{invoice.invoiceNumber}</b><small className="table-sub">Due {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'not set'}</small></td>
-            <td><b>{invoice.supplierName}</b><small className="table-sub">{invoice.itemName} · {invoice.sku}</small></td>
-            <td>{new Date(invoice.invoiceDate).toLocaleDateString()}</td>
-            <td>{money(invoice.purchaseRequestTotal,invoice.currency)}</td>
-            <td>{money(invoice.total,invoice.currency)}</td>
-            <td><span className={'status '+(mismatch?'status-pending':'status-ok')}>{difference>0?'+':''}{money(difference,invoice.currency)}</span></td>
-            <td><span className={'status '+(invoice.status==='approved'?'status-ok':invoice.status==='rejected'?'status-rejected':'status-pending')}>{invoice.status.replaceAll('_',' ')}</span></td>
-            <td>{manager && invoice.status==='pending_review' ? <div className="review-actions"><button type="button" disabled={busy} onClick={()=>review(invoice,'approved')}>Approve</button><button type="button" disabled={busy} onClick={()=>review(invoice,'rejected')}>Reject</button></div> : '—'}</td>
+            <td data-label="Invoice"><b>{invoice.invoiceNumber}</b><small className="table-sub">Due {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'not set'}</small></td>
+            <td data-label="Supplier / item"><b>{invoice.supplierName}</b><small className="table-sub">{invoice.itemName} · {invoice.sku}</small></td>
+            <td data-label="Invoice date">{new Date(invoice.invoiceDate).toLocaleDateString()}</td>
+            <td data-label="Order total">{money(invoice.purchaseRequestTotal,invoice.currency)}</td>
+            <td data-label="Invoice total">{money(invoice.total,invoice.currency)}</td>
+            <td data-label="Difference"><span className={'status '+(mismatch?'status-pending':'status-ok')}>{difference>0?'+':''}{money(difference,invoice.currency)}</span></td>
+            <td data-label="Status"><span className={'status '+(invoice.status==='approved'?'status-ok':invoice.status==='rejected'?'status-rejected':'status-pending')}>{invoice.status.replaceAll('_',' ')}</span></td>
+            <td data-label="Action">{manager && invoice.status==='pending_review' ? <div className="review-actions"><button type="button" disabled={busy} onClick={()=>review(invoice,'approved')}>Approve</button><button type="button" disabled={busy} onClick={()=>review(invoice,'rejected')}>Reject</button></div> : '—'}</td>
           </tr>;
         })}
       </tbody></table></div>

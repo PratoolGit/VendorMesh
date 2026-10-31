@@ -29,7 +29,7 @@ export default function WorkspaceReconciliation({ api }) {
       </div>
       <section className="table-card">
         <div className="invoice-table-heading"><div><h3>Reconciliation signals</h3><p className="muted">These are discrepancy checks, not fraud conclusions. No records are changed.</p></div></div>
-        <div className="table-scroll" role="region" aria-label="Reconciliation signals table" tabIndex="0"><table aria-label="Reconciliation signals"><thead><tr><th>Priority</th><th>Signal</th><th>Purchase request</th><th>Invoice</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>
+        <div className="table-scroll vm-interactive-table" role="region" aria-label="Reconciliation signals table" tabIndex="0"><table aria-label="Reconciliation signals"><thead><tr><th>Priority</th><th>Signal</th><th>Purchase request</th><th>Invoice</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>
           {(result.signals||[]).map(signal=>{
             const evidence=signal.evidence||[];
             const details=[];
@@ -40,12 +40,12 @@ export default function WorkspaceReconciliation({ api }) {
             if(evidence.invoiceNumber) details.push(evidence.invoiceNumber);
             if(evidence.supplierName) details.push(evidence.supplierName);
             return <tr key={signal.id}>
-              <td><span className={'status '+(signal.severity==='high_priority_review'?'status-rejected':'status-pending')}>{signal.severity.replaceAll('_',' ')}</span></td>
-              <td><b>{signal.title}</b><small className="table-sub">{signal.type.replaceAll('_',' ')}</small></td>
-              <td><code>{signal.requestId||'—'}</code><small className="table-sub">{evidence.itemName||'—'}</small></td>
-              <td><code>{signal.invoiceId||'—'}</code></td>
-              <td>{details.length?details.join(' · '):'Additional record review required'}</td>
-              <td>{signal.nextStep}</td>
+              <td data-label="Priority"><span className={'status '+(signal.severity==='high_priority_review'?'status-rejected':'status-pending')}>{signal.severity.replaceAll('_',' ')}</span></td>
+              <td data-label="Signal"><b>{signal.title}</b><small className="table-sub">{signal.type.replaceAll('_',' ')}</small></td>
+              <td data-label="Purchase request"><code>{signal.requestId||'—'}</code><small className="table-sub">{evidence.itemName||'—'}</small></td>
+              <td data-label="Invoice"><code>{signal.invoiceId||'—'}</code></td>
+              <td data-label="Evidence">{details.length?details.join(' · '):'Additional record review required'}</td>
+              <td data-label="Next step">{signal.nextStep}</td>
             </tr>;
           })}
         </tbody></table></div>

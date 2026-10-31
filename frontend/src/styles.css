@@ -1316,3 +1316,30 @@ button:active:not(:disabled){transition-duration:.06s}
   .vm-loading-skeleton i{animation:none;background:var(--vm-border-strong)}
   .metric-card-action{transition:none}
 }
+
+
+/* Session-only form recovery and responsive operational tables. */
+.draft-hint{margin:-8px 0 15px;color:var(--muted);font-size:10px;line-height:1.6}
+@media(max-width:760px){
+  .vm-interactive-table{overflow:visible}
+  .vm-interactive-table table{display:block;min-width:0;width:100%}
+  .vm-interactive-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .vm-interactive-table tbody{display:grid;gap:10px}
+  .vm-interactive-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+  .vm-interactive-table tbody td{display:grid;grid-template-columns:minmax(72px,.72fr) minmax(0,1.28fr);align-items:start;gap:8px;min-width:0;padding:9px 3px;border:0;border-bottom:1px solid var(--line);font-size:11px;white-space:normal;overflow-wrap:anywhere}
+  .vm-interactive-table tbody td::before{content:attr(data-label);color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.5}
+  .vm-interactive-table tbody td:last-child{border-bottom:0}
+  .vm-interactive-table tbody td.vm-check-cell{display:flex;align-items:center;grid-column:1/-1;border-bottom:1px solid var(--line)}
+  .vm-interactive-table tbody td.vm-check-cell::before{content:none}
+  .vm-interactive-table tbody td[data-label="Review"],.vm-interactive-table tbody td[data-label="Fulfillment"],.vm-interactive-table tbody td[data-label="Action"]{grid-column:1/-1}
+  .vm-interactive-table .table-sub{max-width:none;white-space:normal;overflow-wrap:anywhere}
+  .vm-interactive-table .review-actions,.vm-interactive-table .fulfillment-actions{min-width:0;flex-wrap:wrap}
+  .vm-interactive-table .review-actions button,.vm-interactive-table .fulfillment-actions button{min-height:34px}
+}
+@media(max-width:430px){
+  .vm-interactive-table tbody tr{grid-template-columns:minmax(0,1fr)}
+  .vm-interactive-table tbody td{grid-template-columns:minmax(92px,.72fr) minmax(0,1.28fr)}
+  .vm-interactive-table tbody td.vm-check-cell{grid-column:1}
+  .vm-interactive-table tbody td[data-label="Review"],.vm-interactive-table tbody td[data-label="Fulfillment"],.vm-interactive-table tbody td[data-label="Action"]{grid-column:1}
+  .draft-hint{margin-top:-10px}
+}
