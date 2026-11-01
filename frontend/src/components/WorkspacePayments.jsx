@@ -26,7 +26,7 @@ function isOverdue(invoice) {
   return Boolean(invoice.dueDate && statusFor(invoice) !== 'paid' && new Date(invoice.dueDate).getTime() < new Date(today() + 'T00:00:00').getTime());
 }
 
-export default function WorkspacePayments({ api, role, currency = 'USD' }) {
+export default function WorkspacePayments({ api, role, currency = 'USD', searchRequest }) {
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [invoiceId, setInvoiceId] = useState('');
@@ -37,6 +37,7 @@ export default function WorkspacePayments({ api, role, currency = 'USD' }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  useEffect(() => { if (searchRequest?.tab === 'payments' && searchRequest.sequence) setQuery(searchRequest.query); }, [searchRequest?.sequence]);
 
   const selectedInvoice = invoices.find(invoice => invoice._id === invoiceId) || null;
   const balance = selectedInvoice ? outstanding(selectedInvoice) : 0;
