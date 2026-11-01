@@ -336,12 +336,14 @@ export default function App() {
   }, [refresh]);
 
   async function authenticated(result) {
+    setSearchExtras({ orders: [], receipts: [], invoices: [], payments: [], loaded: false });
     setSummary(null); setInventory([]); setSuppliers([]); setRequests([]); setRecommendations([]); setTeam([]); setAuditEntries([]); setPricingResult(null); setForecastResult(null); setAnomalyResult(null); setTab('overview');
     setSession({ user: result.user, company: result.company });
     setError(''); setNotice('Workspace ready. Add your inventory and suppliers to get started.');
     try { await refresh(); } catch (e) { setError(e.message); }
   }
   function signOut() {
+    setSearchExtras({ orders: [], receipts: [], invoices: [], payments: [], loaded: false });
     if (draftScope) {
       ['inventory', 'supplier', 'purchase', 'pricing', 'invoice'].forEach((name) => {
         try { sessionStorage.removeItem('vendormesh.draft.' + draftScope + '.' + name); } catch { /* Ignore unavailable tab storage. */ }
