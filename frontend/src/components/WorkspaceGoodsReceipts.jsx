@@ -23,7 +23,7 @@ function whole(value) {
   return value !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
 }
 
-export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRecorded }) {
+export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRecorded, searchRequest }) {
   const [orders, setOrders] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [orderId, setOrderId] = useState(initialOrderId);
@@ -33,6 +33,8 @@ export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRec
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [printReceipt, setPrintReceipt] = useState(null);
+  const [query, setQuery] = useState('');
+  useEffect(() => { if (searchRequest?.tab === 'goods-receipts' && searchRequest.sequence) setQuery(searchRequest.query); }, [searchRequest?.sequence]);
 
   const openOrders = useMemo(() => orders.filter(order => ['issued', 'acknowledged', 'partially_received'].includes(order.status) && outstanding(order) > 0), [orders]);
   const selectedOrder = openOrders.find(order => order._id === orderId) || null;
@@ -42,6 +44,8 @@ export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRec
   const accepted = Number(form.acceptedQuantity);
   const damaged = Number(form.damagedQuantity);
   const missing = expected - delivered;
+  const visibleReceipts = receipts.filter(receipt => !query.trim() || [receipt.receiptNumber, receipt.poNumber, receipt.supplierName, receipt.itemName, receipt.sku].some(value => String(value || '').toLowerCase().includes(query.trim().toLowerCase())));
+
   const quantitiesValid = [form.expectedQuantity, form.deliveredQuantity, form.acceptedQuantity, form.damagedQuantity].every(whole)
     && expected >= 1 && expected <= remaining
     && delivered <= expected
@@ -163,10 +167,10 @@ export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRec
       {!quantitiesValid && selectedOrder && <p className="grn-validation-hint">Check that expected, delivered, accepted and damaged quantities are whole numbers; accepted + damaged must equal delivered. Add a note for any discrepancy.</p>}
     </form>
     <section className="table-card">
-      <div className="grn-table-heading"><div><h3>Goods receipt history</h3><p className="muted">Newest 100 GRNs from this workspace.</p></div></div>
+      <div className="grn-table-heading"><div><h3>Goods receipt history</h3><p className="muted">Newest 100 GRNs from this workspace.</p></div><label className="payment-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search GRN, PO, supplier…" aria-label="Search goods receipts"/></label></div>
       <div className="table-scroll vm-interactive-table" role="region" aria-label="Goods receipt history table" tabIndex="0">
         <table aria-label="Goods receipt history"><thead><tr><th>GRN number</th><th>Purchase order</th><th>Supplier / item</th><th>Expected</th><th>Delivered</th><th>Accepted</th><th>Damaged</th><th>Missing</th><th>Received</th><th>Document</th></tr></thead><tbody>
-          {receipts.map(receipt => <tr key={receipt._id}>
+          {visibleReceipts.map(receipt => <tr key={receipt._id}>
             <td data-label="GRN number"><b>{receipt.receiptNumber}</b></td>
             <td data-label="Purchase order">{receipt.poNumber}</td>
             <td data-label="Supplier / item"><b>{receipt.supplierName}</b><small className="table-sub">{receipt.itemName} · {receipt.sku}</small></td>
@@ -180,7 +184,7 @@ export default function WorkspaceGoodsReceipts({ api, initialOrderId = '', onRec
           </tr>)}
         </tbody></table>
       </div>
-      {receipts.length === 0 && <p className="muted grn-empty">No goods receipt notes have been recorded yet.</p>}
+      {visibleReceipts.length === 0 && <p className="muted grn-empty">No goods receipt notes have been recorded yet.</p>}
     </section>
     {printReceipt && <article className="vm-grn-print-document" aria-label="Goods receipt note document">
       <header className="vm-grn-print-header"><div><span>VENDORMESH PROCUREMENT</span><h1>GOODS RECEIPT NOTE</h1><p>{printReceipt.supplierName}</p></div><div><b>{printReceipt.receiptNumber}</b><span>Received {localDate(printReceipt.receivedAt)}</span><span>PO {printReceipt.poNumber}</span></div></header>
