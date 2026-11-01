@@ -28,10 +28,10 @@ export function createWorkspaceInvoicesRouter({ requireSession, requireWorkspace
     }
     try {
       const rows = await Invoice.find(filter).sort({ _id: -1 }).limit(limit)
-        .select('_id purchaseRequestId supplierId supplierName itemName sku purchaseRequestTotal invoiceNumber invoiceDate dueDate currency subtotal taxTotal total status createdBy reviewedBy reviewedAt reviewNote createdAt updatedAt')
+        .select('_id purchaseRequestId supplierId supplierName itemName sku purchaseRequestTotal invoiceNumber invoiceDate dueDate currency subtotal taxTotal total paidAmount paymentStatus status createdBy reviewedAt reviewNote createdAt updatedAt')
         .lean();
       return res.json({
-        data: rows,
+        data: rows.map(row => ({ ...row, paidAmount: Number(row.paidAmount || 0), paymentStatus: row.paymentStatus || (Number(row.paidAmount || 0) >= Number(row.total) ? 'paid' : Number(row.paidAmount || 0) > 0 ? 'partially_paid' : 'unpaid') })),
         limit,
         nextCursor: rows.length === limit ? String(rows[rows.length - 1]._id) : null
       });
@@ -72,6 +72,8 @@ export function createWorkspaceInvoicesRouter({ requireSession, requireWorkspace
         subtotal: normalized.value.subtotal,
         taxTotal: normalized.value.taxTotal,
         total: normalized.value.total,
+        paidAmount: 0,
+        paymentStatus: 'unpaid',
         status: 'pending_review',
         createdBy: req.session.sub
       });

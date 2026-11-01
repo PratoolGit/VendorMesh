@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CommandPalette, Sheet } from './components/ui.jsx';
-import WorkspaceAI from './components/WorkspaceAI.jsx';
-import WorkspaceAPIKeys from './components/WorkspaceAPIKeys.jsx';
-import WorkspaceInvoices from './components/WorkspaceInvoices.jsx';
-import WorkspacePurchaseOrders from './components/WorkspacePurchaseOrders.jsx';
-import WorkspaceGoodsReceipts from './components/WorkspaceGoodsReceipts.jsx';
-import WorkspaceReconciliation from './components/WorkspaceReconciliation.jsx';
 import './styles.css';
+const WorkspaceAI = lazy(() => import('./components/WorkspaceAI.jsx'));
+const WorkspaceAPIKeys = lazy(() => import('./components/WorkspaceAPIKeys.jsx'));
+const WorkspaceInvoices = lazy(() => import('./components/WorkspaceInvoices.jsx'));
+const WorkspacePurchaseOrders = lazy(() => import('./components/WorkspacePurchaseOrders.jsx'));
+const WorkspaceGoodsReceipts = lazy(() => import('./components/WorkspaceGoodsReceipts.jsx'));
+const WorkspacePayments = lazy(() => import('./components/WorkspacePayments.jsx'));
+const WorkspaceReconciliation = lazy(() => import('./components/WorkspaceReconciliation.jsx'));
 
 const API = import.meta.env.VITE_API_URL || '';
 const tokenKey = 'vendormesh.session';
@@ -40,6 +41,7 @@ function NavIcon({ name }) {
     suppliers: <><path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></>,
     purchases: <><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6M9 18h3"/></>,
     invoices: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h4M9 12h6M9 16h6"/></>,
+    payments: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/><path d="M16 15h1"/></>,
     sparkles: <><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></>,
     forecast: <><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-6"/><path d="M16 7h3v3"/></>,
     anomalies: <><path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z"/><path d="M12 8v4M12 16h.01"/></>,
@@ -58,15 +60,22 @@ function AuthScreen({ onAuthenticated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const change = (key) => (e) => setForm((s) => ({ ...s, [key]: e.target.value }));
+  const change = (key) => (e) => { setForm((s) => ({ ...s, [key]: e.target.value })); setError(''); };
   async function submit(e) {
     e.preventDefault(); setError(''); setBusy(true);
     try {
+      const credentials = {
+        email: form.email.trim().toLowerCase(),
+        password: form.password
+      };
+      const payload = mode === 'register'
+        ? { ...credentials, name: form.name.trim(), companyName: form.companyName.trim() }
+        : credentials;
       const result = await api(mode === 'register' ? '/api/auth/register' : '/api/auth/login', {
-        method: 'POST', body: JSON.stringify(mode === 'register' ? form : { email: form.email, password: form.password })
+        method: 'POST', body: JSON.stringify(payload)
       });
       sessionStorage.setItem(tokenKey, result.token);
-      onAuthenticated(result);
+      await onAuthenticated(result);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -167,16 +176,17 @@ function AuthScreen({ onAuthenticated }) {
             <label>Your name<input required minLength="2" maxLength="120" autoComplete="name" value={form.name} onChange={change('name')} placeholder="Alex Morgan" /></label>
             <label>Company name<input required minLength="2" maxLength="120" autoComplete="organization" value={form.companyName} onChange={change('companyName')} placeholder="Acme Supply Co." /></label>
           </>}
-          <label>Work email<input required type="email" autoComplete={mode === 'login' ? 'username' : 'email'} maxLength="254" aria-describedby={error ? 'auth-error' : undefined} value={form.email} onChange={change('email')} placeholder="you@company.com" /></label>
+          <label>Work email<input required type="email" autoComplete={mode === 'login' ? 'username' : 'email'} maxLength="254" aria-describedby={error ? 'auth-error' : undefined} value={form.email} onChange={change('email')} autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="you@company.com" /></label>
           <label className="auth-password-label">Password
             <span className="auth-password-control">
-              <input id="auth-password" name="password" required type={passwordVisible ? 'text' : 'password'} minLength={mode === 'register' ? 10 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} aria-describedby={error ? 'auth-password-help auth-error' : 'auth-password-help'} aria-invalid={Boolean(error)} value={form.password} onChange={change('password')} placeholder={mode === 'register' ? 'At least 10 characters' : 'Your password'} />
+              <input id="auth-password" name="password" required type={passwordVisible ? 'text' : 'password'} minLength={mode === 'register' ? 10 : 1} maxLength={200} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} aria-describedby={error ? 'auth-password-help auth-error' : 'auth-password-help'} aria-invalid={Boolean(error)} value={form.password} onChange={change('password')} placeholder={mode === 'register' ? 'At least 10 characters' : 'Your password'} />
               <button className="auth-password-toggle" type="button" onClick={() => setPasswordVisible((visible) => !visible)} aria-controls="auth-password" aria-pressed={passwordVisible} aria-label={passwordVisible ? 'Hide password' : 'Show password'}>{passwordVisible ? 'Hide' : 'Show'}</button>
             </span>
-            <small className="auth-field-help" id="auth-password-help">{mode === 'register' ? 'Use at least 10 characters. You can show the password to check it before creating your workspace.' : 'Enter the password associated with your workspace account.'}</small>
+            <small className="auth-field-help" id="auth-password-help">{mode === 'register' ? 'Use 10–200 characters. You can show the password to check it before creating your workspace.' : 'Enter the password associated with your workspace account.'}</small>
+            {mode === 'register' && <span className={'auth-password-strength' + (form.password.length >= 10 ? ' is-valid' : '')} role="status">{form.password.length >= 10 ? 'Password length requirement met.' : `${Math.max(0, 10 - form.password.length)} more character(s) needed.`}</span>}
           </label>
           {error && <div className="error-box" id="auth-error" role="alert" aria-live="polite">{error}</div>}
-          <button className="primary wide auth-submit" disabled={busy} aria-busy={busy}>{busy ? 'Signing you in…' : mode === 'register' ? 'Create your workspace' : 'Sign in'} <span aria-hidden="true">→</span></button>
+          <button className="primary wide auth-submit" disabled={busy} aria-busy={busy}>{busy ? (mode === 'register' ? 'Creating your workspace…' : 'Signing you in…') : mode === 'register' ? 'Create your workspace' : 'Sign in'} <span aria-hidden="true">→</span></button>
         </form>
         <p className="tiny muted">Your business workspace is isolated from other companies. Keep your login credentials private.</p>
       </div>
@@ -284,16 +294,21 @@ export default function App() {
   }, [tab, focusTarget]);
 
   const refresh = useCallback(async () => {
-    const [s, i, v, p, r] = await Promise.all([
-      api('/api/workspace/summary'), api('/api/workspace/inventory'), api('/api/workspace/suppliers'), api('/api/workspace/purchase-requests'), api('/api/workspace/recommendations')
-    ]);
-    setSummary(s); setInventory(i); setSuppliers(v); setRequests(p); setRecommendations(r.recommendations || []);
+    const data = await api('/api/workspace/bootstrap');
+    setSummary(data.summary || null);
+    setInventory(data.inventory || []);
+    setSuppliers(data.suppliers || []);
+    setRequests(data.requests || []);
+    setRecommendations(data.recommendations || []);
   }, []);
 
   useEffect(() => {
     const token = sessionStorage.getItem(tokenKey);
     if (!token) { setLoading(false); return; }
-    api('/api/auth/me').then(async (me) => { setSession(me); await refresh(); }).catch(() => sessionStorage.removeItem(tokenKey)).finally(() => setLoading(false));
+    Promise.all([api('/api/auth/me'), refresh()])
+      .then(([me]) => setSession(me))
+      .catch(() => { sessionStorage.removeItem(tokenKey); setSession(null); })
+      .finally(() => setLoading(false));
   }, [refresh]);
 
   async function authenticated(result) {
@@ -391,7 +406,7 @@ export default function App() {
   useEffect(() => { if (tab === 'team' && ['owner', 'admin'].includes(session?.company?.role)) loadTeam(); }, [tab, session?.company?.role]);
   useEffect(() => { if (tab === 'audit' && ['owner', 'admin'].includes(session?.company?.role)) loadAuditLog(); }, [tab, session?.company?.role]);
   useEffect(() => {
-    const titles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
+    const titles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',payments:'Supplier payment register',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
     document.title = session ? `${titles[tab] || 'Workspace'} · VendorMesh` : 'VendorMesh — Procurement & Inventory Workspace';
   }, [tab, session?.company?.id]);
   if (loading) return <div className="loading vm-loading-shell" role="status" aria-live="polite"><div className="vm-loading-inner"><div className="vm-loading-brand"><img src="/vendormesh-mark.svg" alt="" /><b>VendorMesh</b></div><span className="dashboard-kicker">WORKSPACE</span><strong>Loading your workspace…</strong><div className="vm-loading-skeleton" aria-hidden="true"><i/><i/><i/></div></div></div>;
@@ -402,8 +417,8 @@ export default function App() {
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
   const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
   const isManager = ['owner', 'admin'].includes(session.company?.role);
-  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['purchase-orders', 'Purchase orders', 'purchases'], ['goods-receipts', 'Goods receipts', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(isManager ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
-  const pageTitles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
+  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['purchase-orders', 'Purchase orders', 'purchases'], ['goods-receipts', 'Goods receipts', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['payments', 'Supplier payments', 'payments'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(isManager ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
+  const pageTitles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',payments:'Supplier payment register',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
   const commandItems = [
     ...nav.map(([id, label]) => ({ id: 'page-' + id, group: 'Navigation', label: 'Go to ' + label, description: pageTitles[id], icon: '↗', onSelect: () => setTab(id) })),
     { id: 'new-inventory', group: 'Quick actions', label: 'Add inventory item', description: 'Open the inventory form', icon: '+', onSelect: () => { setTab('inventory'); setFocusTarget('inventory-form'); } },
@@ -489,12 +504,13 @@ export default function App() {
       </>}      {tab === 'inventory' && <><div className="section-heading"><div><h2>Inventory records</h2><p>Track quantities, reorder points, unit cost and demand.</p></div></div><form className="form-card" data-command-target="inventory-form" onSubmit={addInventory}><h3>Add inventory item</h3><p className="draft-hint">Drafts auto-save in this tab for this workspace and are cleared when you sign out.</p><div className="fields"><Field label="SKU" value={itemForm.sku} onChange={v=>setItemForm({...itemForm,sku:v})} required/><Field label="Item name" value={itemForm.name} onChange={v=>setItemForm({...itemForm,name:v})} required/><Field label="On hand" type="number" min="0" value={itemForm.onHand} onChange={v=>setItemForm({...itemForm,onHand:v})} required/><Field label="Reorder point" type="number" min="0" value={itemForm.reorderPoint} onChange={v=>setItemForm({...itemForm,reorderPoint:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={itemForm.unitCost} onChange={v=>setItemForm({...itemForm,unitCost:v})} required/><Field label="Daily demand" type="number" min="0" step="0.1" value={itemForm.dailyDemand} onChange={v=>setItemForm({...itemForm,dailyDemand:v})}/></div><button className="primary" disabled={busy}>{busy?'Saving…':'Save inventory item'}</button></form><div className="table-card"><InventoryTable items={inventory} currency={session.company?.currency} onCreateRequest={startPurchaseRequest}/>{inventory.length===0&&<Empty title="No inventory records" text="Use the form above to add your first SKU."/>}</div></>}
       {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" data-command-target="supplier-form" onSubmit={addSupplier}><h3>Add supplier</h3><p className="draft-hint">Drafts auto-save in this tab for this workspace and are cleared when you sign out.</p><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><SupplierDirectory suppliers={suppliers}/>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
       {tab === 'recommendations' && <><div className="section-heading"><div><h2>Inventory recommendations</h2><p>Rules-based suggestions from this workspace's stock, demand and supplier lead times. No orders are placed automatically.</p></div><button className="secondary" onClick={() => act(async () => { const result = await api('/api/workspace/recommendations'); setRecommendations(result.recommendations || []); }, 'Recommendations refreshed.')}>Refresh insights</button></div>{recommendations.length === 0 ? <Empty title="No urgent replenishment signals" text="Add daily demand, reorder points and supplier records to make these insights more useful."/> : <div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Item</th><th>Priority</th><th>On hand</th><th>Days of cover</th><th>Suggested qty</th><th>Supplier</th><th>Why flagged</th><th>Next step</th></tr></thead><tbody>{recommendations.map(r=><tr key={r.inventoryItemId}><td><b>{r.name}</b><small className="table-sub">{r.sku}</small></td><td><span className={`status ${r.priority==='high'?'status-low':r.priority==='medium'?'status-pending':'status-ok'}`}>{r.priority}</span></td><td>{r.onHand}</td><td>{r.daysOfCover===null?'—':r.daysOfCover}</td><td>{r.suggestedQuantity}</td><td>{r.supplier ? <>{r.supplier.name}<small className="table-sub">{r.supplier.leadTimeDays} day lead · {r.supplier.reliabilityScore}% reliable</small></> : 'Not linked'}</td><td>{r.reasons.join(' ')}</td><td>{r.action==='review_purchase_request' && r.supplier ? <button className="secondary" onClick={()=>{setRequestForm({inventoryItemId:r.inventoryItemId,supplierId:r.supplier.id,quantity:String(Math.max(1,r.suggestedQuantity)),unitCost:String(inventory.find(i=>i._id===r.inventoryItemId)?.unitCost ?? 0),rationale:r.reasons.join(' ')});setTab('purchases');}}>Prepare request →</button> : <span className="muted">Monitor stock</span>}</td></tr>)}</tbody></table></div></div>}</>}
-      {tab === 'ai' && <WorkspaceAI api={api} session={session} />}
-      {tab === 'invoices' && <WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} workspaceId={draftScope} />}
-      {tab === 'purchase-orders' && <WorkspacePurchaseOrders api={api} requests={requests} suppliers={suppliers} role={session.company?.role} currency={session.company?.currency} initialRequestId={poRequestId} onCreated={async () => { setPoRequestId(''); await refresh(); }} onRecordReceipt={startGoodsReceipt} />}
-      {tab === 'goods-receipts' && <WorkspaceGoodsReceipts api={api} initialOrderId={grnOrderId} onRecorded={async () => { setGrnOrderId(''); await refresh(); }} />}
-      {tab === 'reconciliation' && <WorkspaceReconciliation api={api} />}
-      {tab === 'api-keys' && <WorkspaceAPIKeys api={api} />}
+      {tab === 'ai' && <Suspense fallback={<PageLoading />}><WorkspaceAI api={api} session={session} /></Suspense>}
+      {tab === 'invoices' && <Suspense fallback={<PageLoading />}><WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} workspaceId={draftScope} /></Suspense>}
+      {tab === 'payments' && <Suspense fallback={<PageLoading />}><WorkspacePayments api={api} role={session.company?.role} currency={session.company?.currency} /></Suspense>}
+      {tab === 'purchase-orders' && <Suspense fallback={<PageLoading />}><WorkspacePurchaseOrders api={api} requests={requests} suppliers={suppliers} role={session.company?.role} currency={session.company?.currency} initialRequestId={poRequestId} onCreated={async () => { setPoRequestId(''); await refresh(); }} onRecordReceipt={startGoodsReceipt} /></Suspense>}
+      {tab === 'goods-receipts' && <Suspense fallback={<PageLoading />}><WorkspaceGoodsReceipts api={api} initialOrderId={grnOrderId} onRecorded={async () => { setGrnOrderId(''); await refresh(); }} /></Suspense>}
+      {tab === 'reconciliation' && <Suspense fallback={<PageLoading />}><WorkspaceReconciliation api={api} /></Suspense>}
+      {tab === 'api-keys' && <Suspense fallback={<PageLoading />}><WorkspaceAPIKeys api={api} /></Suspense>}
       {tab === 'anomalies' && <><div className="section-heading"><div><h2>Review signals</h2><p>Rule-based checks across recent workspace purchase requests. Flags never approve, reject, or pay automatically.</p></div><button className="secondary" onClick={loadAnomalies}>Refresh review queue</button></div>{anomalyResult && <><p className="inline-hint">{anomalyResult.warning} The review set includes the latest 500 purchase requests only.</p><div className="metric-grid"><Metric label="Signals found" value={anomalyResult.count} note="Not fraud findings" icon="!"/><Metric label="High-priority review" value={anomalyResult.anomalies.filter(a=>a.severity==='high_priority_review').length} note="Human review recommended" icon="⌁" tone="amber"/><Metric label="Review recommended" value={anomalyResult.anomalies.filter(a=>a.severity==='review_recommended').length} note="Verify record consistency" icon="✓"/></div><div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Priority</th><th>Signal</th><th>Record</th><th>Finding</th><th>Evidence</th><th>Suggested review</th></tr></thead><tbody>{anomalyResult.anomalies.map(a=><tr key={a.id}><td><span className={'status '+(a.severity==='high_priority_review'?'status-rejected':'status-pending')}>{a.severity.replaceAll('_',' ')}</span></td><td><b>{a.title}</b><small className="table-sub">{a.type.replaceAll('_',' ')}</small></td><td><code>{a.recordId}</code><small className="table-sub">{a.evidence.itemName || 'Purchase request'}</small></td><td>{a.message}</td><td>{a.evidence.supplierName || 'Supplier unavailable'}{a.evidence.totalCost !== undefined && <small className="table-sub">Total {money(a.evidence.totalCost,a.evidence.currency)} · Limit {money(a.evidence.maximumAllowed,a.evidence.currency)}</small>}{a.evidence.previousRequestId && <small className="table-sub">Similar request: {a.evidence.previousRequestId}</small>}</td><td>{a.nextStep}</td></tr>)}</tbody></table></div>{anomalyResult.count===0&&<Empty title="No review signals found" text="No matching review conditions were found in the latest requests. This is not a guarantee that all records are correct."/>}</div></>}</>}
       {tab === 'forecast' && <><div className="section-heading"><div><h2>Inventory coverage baseline</h2><p>Planning estimates based on each item's configured daily demand, active supplier lead time, and a 3-day safety buffer.</p></div><button className="secondary" onClick={loadForecast}>Refresh forecast</button></div>{forecastResult && <><p className="inline-hint">{forecastResult.limitation} These are advisory estimates, not validated machine-learning predictions or guarantees.</p><div className="metric-grid"><Metric label="Items assessed" value={forecastResult.forecasts.length} note="Records in this workspace" icon="▦"/><Metric label="High stockout risk" value={forecastResult.forecasts.filter(f=>f.stockoutRisk==='high').length} note="Cover at/below lead time" icon="!" tone="amber"/><Metric label="Need demand data" value={forecastResult.forecasts.filter(f=>f.stockoutRisk==='insufficient_data').length} note="Add daily demand first" icon="⌁"/></div><div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Item</th><th>On hand</th><th>Daily demand</th><th>7-day demand</th><th>30-day demand</th><th>Days of cover</th><th>Supplier lead</th><th>Risk</th><th>Suggested reorder</th></tr></thead><tbody>{forecastResult.forecasts.map(f=><tr key={f.inventoryItemId}><td><b>{f.name}</b><small className="table-sub">{f.sku}</small></td><td>{f.onHand ?? '—'}</td><td>{f.dailyDemand ?? '—'}</td><td>{f.next7DaysDemand ?? '—'}</td><td>{f.next30DaysDemand ?? '—'}</td><td>{f.daysOfCover ?? '—'}</td><td>{f.supplier ? (f.supplier.leadTimeDays + ' days') : '7-day fallback'}</td><td><span className={'status ' + (f.stockoutRisk==='high'?'status-low':f.stockoutRisk==='medium'?'status-pending':f.stockoutRisk==='normal'?'status-ok':'')}>{f.stockoutRisk.replace('_',' ')}</span><small className="table-sub">{f.explanation}</small></td><td>{f.suggestedReorderQuantity ?? 'Add demand data'}</td></tr>)}</tbody></table></div>{forecastResult.forecasts.length===0&&<Empty title="No inventory to forecast" text="Add workspace inventory records to generate transparent stock coverage estimates."/>}</div></>}</>}
       {tab === 'pricing' && <><div className="section-heading"><div><h2>What-if pricing scenarios</h2><p>Estimate revenue and gross profit across five price points before making a human-reviewed decision.</p></div></div><form className="form-card" onSubmit={runPricing}><h3>Scenario assumptions</h3><p className="draft-hint">Drafts auto-save in this tab for this workspace and are cleared when you sign out.</p><div className="fields"><Field label="Current unit price" type="number" min="0.01" step="0.01" value={pricingForm.basePrice} onChange={v=>setPricingForm({...pricingForm,basePrice:v})} required/><Field label="Unit cost" type="number" min="0" step="0.01" value={pricingForm.unitCost} onChange={v=>setPricingForm({...pricingForm,unitCost:v})} required/><Field label="Baseline units in period" type="number" min="0" step="1" value={pricingForm.baselineUnits} onChange={v=>setPricingForm({...pricingForm,baselineUnits:v})} required/><Field label="Demand elasticity (0–5)" type="number" min="0" max="5" step="0.1" value={pricingForm.elasticity} onChange={v=>setPricingForm({...pricingForm,elasticity:v})} required/><Field label="Competitor price (optional)" type="number" min="0.01" step="0.01" value={pricingForm.competitorPrice} onChange={v=>setPricingForm({...pricingForm,competitorPrice:v})}/></div><button className="primary" disabled={busy}>{busy?'Calculating…':'Calculate scenarios'}</button></form>{pricingResult&&<><div className="flash flash-ok">{pricingResult.warning}</div><div className="section-heading"><div><h2>Estimated outcomes</h2><p>These are model-based estimates, not guaranteed forecasts.</p></div></div><div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Price change</th><th>Price</th><th>Predicted units</th><th>Revenue</th><th>Gross profit</th><th>Margin</th><th>Vs. competitor</th></tr></thead><tbody>{pricingResult.scenarios.map((s)=><tr key={s.changePercent}><td>{s.changePercent>0?'+':''}{s.changePercent}%</td><td>{money(s.price)}</td><td>{s.predictedUnits}</td><td>{money(s.revenue)}</td><td>{money(s.grossProfit)}</td><td>{s.marginPercent}%</td><td>{s.versusCompetitorPercent===null?'—':`${s.versusCompetitorPercent>0?'+':''}${s.versusCompetitorPercent}%`}</td></tr>)}</tbody></table></div><p className="muted">Highest estimated gross profit: {money(pricingResult.highestEstimatedGrossProfit.grossProfit)} at {money(pricingResult.highestEstimatedGrossProfit.price)}.</p></div></>}</>}
@@ -507,6 +523,7 @@ export default function App() {
     <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} items={commandItems} placeholder="Search pages, actions, and workspace tools..." />
   </>;
 }
+function PageLoading() { return <div className="vm-page-loading" role="status"><span className="vm-loading-spinner" aria-hidden="true"/><span>Loading workspace view…</span></div>; }
 function Metric({label,value,note,icon,tone,series,seriesLabel,seriesCaption,onClick}) {
   const values = Array.isArray(series) ? series.map(Number).filter((value) => Number.isFinite(value)) : [];
   const max = Math.max(1, ...values);

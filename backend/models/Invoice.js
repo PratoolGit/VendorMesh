@@ -15,6 +15,8 @@ const InvoiceSchema = new mongoose.Schema({
   subtotal: { type: Number, required: true, min: 0 },
   taxTotal: { type: Number, required: true, min: 0 },
   total: { type: Number, required: true, min: 0 },
+  paidAmount: { type: Number, min: 0, default: 0 },
+  paymentStatus: { type: String, enum: ['unpaid', 'partially_paid', 'paid'], default: 'unpaid', index: true },
   status: { type: String, enum: ['pending_review', 'approved', 'rejected'], default: 'pending_review', index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -25,5 +27,6 @@ const InvoiceSchema = new mongoose.Schema({
 InvoiceSchema.index({ companyId: 1, createdAt: -1 });
 InvoiceSchema.index({ companyId: 1, supplierId: 1, invoiceNumber: 1 }, { unique: true });
 InvoiceSchema.index({ companyId: 1, purchaseRequestId: 1, status: 1 });
+InvoiceSchema.index({ companyId: 1, status: 1, paymentStatus: 1, dueDate: 1 });
 
 export default mongoose.models.Invoice || mongoose.model('Invoice', InvoiceSchema);

@@ -604,6 +604,1343 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/bootstrap:
+    get:
+      tags: [Workspace]
+      summary: Load the initial tenant-scoped workspace in one request
+      description: Returns the workspace summary, inventory, suppliers, recent purchase requests and deterministic replenishment recommendations. Intended to reduce client round trips during sign-in and data refresh.
+      responses:
+        '200':
+          description: Bootstrap payload for the active workspace
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { type: object }
+                  inventory: { type: array, items: { $ref: '#/components/schemas/InventoryItem' } }
+                  suppliers: { type: array, items: { $ref: '#/components/schemas/Supplier' } }
+                  requests: { type: array, items: { $ref: '#/components/schemas/PurchaseRequest' } }
+                  recommendations: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/workspace/payments:
+    get:
+      tags: [Purchasing]
+      summary: List recent manual supplier payment records
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        '200':
+          description: Tenant-scoped manual payment history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+                  limit: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/workspace/payments/invoices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Invoice id
+        schema: { type: string, pattern: '^[a-fA-F0-9]{24}    get:
+      tags: [Purchasing]
+      summary: List invoice records for the active workspace
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending_review, approved, rejected] }
+      responses:
+        '200':
+          description: Tenant-scoped invoice page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Invoice' } }
+                  limit: { type: integer }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Purchasing]
+      summary: Manually record an invoice against an approved or fulfilled purchase request
+      description: |
+        Invoice values are entered manually in this release. File uploads/OCR are not enabled.
+        Creation queues the invoice for review and does not initiate any payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purchaseRequestId, invoiceNumber, invoiceDate, currency, subtotal, taxTotal, total]
+              properties:
+                purchaseRequestId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+                invoiceNumber: { type: string, minLength: 2, maxLength: 100 }
+                invoiceDate: { type: string, format: date }
+                dueDate: { type: [string, 'null'], format: date }
+                currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+                subtotal: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+                taxTotal: { type: number, minimum: 0, maximum: 100000000 }
+                total: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+      responses:
+        '201':
+          description: Invoice stored in pending_review status; no payment initiated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/invoices/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Approve or reject a pending invoice (owner/admin only)
+      description: Approval of an amount or currency mismatch requires a review note; rejection requires a reason. Does not initiate payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Invoice reviewed; no payment initiated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/reconciliation:
+    get:
+      tags: [Purchasing]
+      summary: Run read-only invoice-to-purchase-request reconciliation (owner/admin)
+      description: |
+        Checks the recent workspace invoice register and purchase requests for missing invoices,
+        possible duplicate supplier invoice numbers, invoice totals above purchase totals, currency
+        mismatches and pending review. Does not perform payment/settlement reconciliation.
+      responses:
+        '200':
+          description: Deterministic review signals with window limits and explanatory evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  method: { type: string }
+                  isReadOnly: { const: true }
+                  warning: { type: string }
+                  counts: { type: object }
+                  signals: { type: array, items: { type: object, additionalProperties: true } }
+                  window: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/pricing-simulator:
+    post:
+      tags: [Intelligence]
+      summary: Estimate price scenarios; never writes actual prices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [basePrice, unitCost, baselineUnits]
+              properties:
+                basePrice: { type: number, exclusiveMinimum: 0 }
+                unitCost: { type: number, minimum: 0 }
+                baselineUnits: { type: integer, minimum: 0, maximum: 9007199254740991 }
+                elasticity: { type: number, minimum: 0, maximum: 5, default: 1.2 }
+                competitorPrice: { type: [number, 'null'], exclusiveMinimum: 0 }
+      responses:
+        '200': { description: Advisory scenarios and assumptions }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/workspace/api-keys:
+    get:
+      tags: [Workspace]
+      summary: List API key metadata for this workspace (owner/admin)
+      responses:
+        '200':
+          description: List of keys without token secrets or hashes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys: { type: array, items: { $ref: '#/components/schemas/WorkspaceAPIKey' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Workspace]
+      summary: Create a read-only workspace API key (owner/admin)
+      description: The full token is returned once only. Store it in a secret manager; the database stores only its SHA-256 hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 80 }
+                scopes:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [inventory:read, suppliers:read, purchasing:read] }
+                expiresInDays: { type: integer, minimum: 1, maximum: 365, default: 90 }
+      responses:
+        '201':
+          description: Key created; this response is the only place the full token is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      prefix: { type: string }
+                      token: { type: string, writeOnly: true }
+                      scopes: { type: array, items: { type: string } }
+                      createdAt: { type: string, format: date-time }
+                      expiresAt: { type: string, format: date-time }
+                  warning: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/api-keys/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    delete:
+      tags: [Workspace]
+      summary: Revoke an API key for this workspace (owner/admin)
+      responses:
+        '200': { description: API key revoked }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Inventory]
+      summary: List workspace inventory using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          description: Object ID cursor returned by nextCursor.
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: sku
+          description: Exact SKU match (case-normalized).
+          schema: { type: string, maxLength: 80 }
+        - in: query
+          name: lowStock
+          schema: { type: boolean }
+      responses:
+        '200': { description: Page of tenant-scoped inventory plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/suppliers:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Suppliers]
+      summary: List workspace suppliers using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: active
+          schema: { type: boolean }
+        - in: query
+          name: name
+          description: Exact supplier name match.
+          schema: { type: string, maxLength: 180 }
+      responses:
+        '200': { description: Page of tenant-scoped suppliers plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/purchase-requests:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Purchasing]
+      summary: List workspace purchase requests using a read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+      responses:
+        '200': { description: Page of tenant-scoped purchase request metadata plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+components:
+  securitySchemes:
+    BearerSession:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC-signed VendorMesh session
+    WorkspaceAPIKeyBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: vmk workspace API key
+  parameters:
+    ObjectId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+  responses:
+    BadRequest:
+      description: Input validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing, invalid, or expired session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Workspace membership or role denies the action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Record not found in the active workspace
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Requested state conflicts with existing record
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded for this process or workspace quota
+      headers:
+        Retry-After:
+          schema: { type: integer }
+  schemas:
+    PurchaseOrder:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        poNumber: { type: string }
+        buyerSnapshot:
+          type: object
+          properties:
+            companyName: { type: string }
+        supplierId: { type: string }
+        supplierSnapshot:
+          type: object
+          properties:
+            name: { type: string }
+            email: { type: string }
+        lineItems:
+          type: array
+          items:
+            type: object
+            properties:
+              inventoryItemId: { type: string }
+              sku: { type: string }
+              itemName: { type: string }
+              quantity: { type: integer }
+              unitCost: { type: number }
+              totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        total: { type: number }
+        receivedQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GoodsReceipt:
+      type: object
+      properties:
+        _id: { type: string }
+        receiptNumber: { type: string }
+        purchaseOrderId: { type: string }
+        purchaseRequestId: { type: string }
+        inventoryItemId: { type: string }
+        poNumber: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        expectedQuantity: { type: integer }
+        deliveredQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        legacyAcceptedQuantity: { type: integer, description: Earlier request-only receipts reconciled as accepted stock }
+        missingQuantity: { type: integer }
+        discrepancyNotes: { type: string }
+        receivedBy: { type: string }
+        receivedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Payment:
+      type: object
+      properties:
+        _id: { type: string }
+        invoiceId: { type: string }
+        invoiceNumber: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        amount: { type: number }
+        recordType: { type: string, enum: [payment, reversal] }
+        reversesPaymentId: { type: [string, 'null'] }
+        reversalReason: { type: string }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        method: { type: string, enum: [bank_transfer, upi, cash, cheque, card, other] }
+        reference: { type: string }
+        paidAt: { type: string, format: date-time }
+        notes: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Invoice:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        paidAmount: { type: number }
+        paymentStatus: { type: string, enum: [unpaid, partially_paid, paid] }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    Supplier:
+      type: object
+      properties:
+        _id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        active: { type: boolean }
+        leadTimeDays: { type: number }
+        reliabilityScore: { type: number }
+        paymentTerms: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
+ }
+        subtotal: { type: number }
+        total: { type: number }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Invoice:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
+ }
+    post:
+      tags: [Purchasing]
+      summary: Record a manual payment against an approved invoice
+      description: Payment entry, invoice paid amount and payment status are written atomically. Amount cannot exceed the outstanding balance. This endpoint records a completed external settlement and does not initiate a transfer or call a payment gateway. Payment entries are append-only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [amount, method]
+              properties:
+                amount: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+                method: { type: string, enum: [bank_transfer, upi, cash, cheque, card, other] }
+                reference: { type: string, maxLength: 100 }
+                paidAt: { type: string, format: date }
+                notes: { type: string, maxLength: 500 }
+      responses:
+        '201':
+          description: Payment recorded and invoice balance updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/payments/{id}/reverse:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Original payment record id
+        schema: { type: string, pattern: '^[a-fA-F0-9]{24}    get:
+      tags: [Purchasing]
+      summary: List invoice records for the active workspace
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending_review, approved, rejected] }
+      responses:
+        '200':
+          description: Tenant-scoped invoice page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Invoice' } }
+                  limit: { type: integer }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Purchasing]
+      summary: Manually record an invoice against an approved or fulfilled purchase request
+      description: |
+        Invoice values are entered manually in this release. File uploads/OCR are not enabled.
+        Creation queues the invoice for review and does not initiate any payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purchaseRequestId, invoiceNumber, invoiceDate, currency, subtotal, taxTotal, total]
+              properties:
+                purchaseRequestId: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+                invoiceNumber: { type: string, minLength: 2, maxLength: 100 }
+                invoiceDate: { type: string, format: date }
+                dueDate: { type: [string, 'null'], format: date }
+                currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+                subtotal: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+                taxTotal: { type: number, minimum: 0, maximum: 100000000 }
+                total: { type: number, exclusiveMinimum: 0, maximum: 100000000 }
+      responses:
+        '201':
+          description: Invoice stored in pending_review status; no payment initiated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/invoices/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    post:
+      tags: [Purchasing]
+      summary: Approve or reject a pending invoice (owner/admin only)
+      description: Approval of an amount or currency mismatch requires a review note; rejection requires a reason. Does not initiate payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Invoice reviewed; no payment initiated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/workspace/reconciliation:
+    get:
+      tags: [Purchasing]
+      summary: Run read-only invoice-to-purchase-request reconciliation (owner/admin)
+      description: |
+        Checks the recent workspace invoice register and purchase requests for missing invoices,
+        possible duplicate supplier invoice numbers, invoice totals above purchase totals, currency
+        mismatches and pending review. Does not perform payment/settlement reconciliation.
+      responses:
+        '200':
+          description: Deterministic review signals with window limits and explanatory evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  method: { type: string }
+                  isReadOnly: { const: true }
+                  warning: { type: string }
+                  counts: { type: object }
+                  signals: { type: array, items: { type: object, additionalProperties: true } }
+                  window: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/pricing-simulator:
+    post:
+      tags: [Intelligence]
+      summary: Estimate price scenarios; never writes actual prices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [basePrice, unitCost, baselineUnits]
+              properties:
+                basePrice: { type: number, exclusiveMinimum: 0 }
+                unitCost: { type: number, minimum: 0 }
+                baselineUnits: { type: integer, minimum: 0, maximum: 9007199254740991 }
+                elasticity: { type: number, minimum: 0, maximum: 5, default: 1.2 }
+                competitorPrice: { type: [number, 'null'], exclusiveMinimum: 0 }
+      responses:
+        '200': { description: Advisory scenarios and assumptions }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/workspace/api-keys:
+    get:
+      tags: [Workspace]
+      summary: List API key metadata for this workspace (owner/admin)
+      responses:
+        '200':
+          description: List of keys without token secrets or hashes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys: { type: array, items: { $ref: '#/components/schemas/WorkspaceAPIKey' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Workspace]
+      summary: Create a read-only workspace API key (owner/admin)
+      description: The full token is returned once only. Store it in a secret manager; the database stores only its SHA-256 hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 80 }
+                scopes:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [inventory:read, suppliers:read, purchasing:read] }
+                expiresInDays: { type: integer, minimum: 1, maximum: 365, default: 90 }
+      responses:
+        '201':
+          description: Key created; this response is the only place the full token is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      prefix: { type: string }
+                      token: { type: string, writeOnly: true }
+                      scopes: { type: array, items: { type: string } }
+                      createdAt: { type: string, format: date-time }
+                      expiresAt: { type: string, format: date-time }
+                  warning: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/workspace/api-keys/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ObjectId'
+    delete:
+      tags: [Workspace]
+      summary: Revoke an API key for this workspace (owner/admin)
+      responses:
+        '200': { description: API key revoked }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/inventory:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Inventory]
+      summary: List workspace inventory using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          description: Object ID cursor returned by nextCursor.
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: sku
+          description: Exact SKU match (case-normalized).
+          schema: { type: string, maxLength: 80 }
+        - in: query
+          name: lowStock
+          schema: { type: boolean }
+      responses:
+        '200': { description: Page of tenant-scoped inventory plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/suppliers:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Suppliers]
+      summary: List workspace suppliers using a scoped read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: active
+          schema: { type: boolean }
+        - in: query
+          name: name
+          description: Exact supplier name match.
+          schema: { type: string, maxLength: 180 }
+      responses:
+        '200': { description: Page of tenant-scoped suppliers plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/purchase-requests:
+    get:
+      security: [{ WorkspaceAPIKeyBearer: [] }]
+      tags: [Purchasing]
+      summary: List workspace purchase requests using a read-only API key
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: after
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+      responses:
+        '200': { description: Page of tenant-scoped purchase request metadata plus nextCursor }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+components:
+  securitySchemes:
+    BearerSession:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC-signed VendorMesh session
+    WorkspaceAPIKeyBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: vmk workspace API key
+  parameters:
+    ObjectId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+  responses:
+    BadRequest:
+      description: Input validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing, invalid, or expired session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Workspace membership or role denies the action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Record not found in the active workspace
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Requested state conflicts with existing record
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded for this process or workspace quota
+      headers:
+        Retry-After:
+          schema: { type: integer }
+  schemas:
+    PurchaseOrder:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        poNumber: { type: string }
+        buyerSnapshot:
+          type: object
+          properties:
+            companyName: { type: string }
+        supplierId: { type: string }
+        supplierSnapshot:
+          type: object
+          properties:
+            name: { type: string }
+            email: { type: string }
+        lineItems:
+          type: array
+          items:
+            type: object
+            properties:
+              inventoryItemId: { type: string }
+              sku: { type: string }
+              itemName: { type: string }
+              quantity: { type: integer }
+              unitCost: { type: number }
+              totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        total: { type: number }
+        receivedQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GoodsReceipt:
+      type: object
+      properties:
+        _id: { type: string }
+        receiptNumber: { type: string }
+        purchaseOrderId: { type: string }
+        purchaseRequestId: { type: string }
+        inventoryItemId: { type: string }
+        poNumber: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        expectedQuantity: { type: integer }
+        deliveredQuantity: { type: integer }
+        acceptedQuantity: { type: integer }
+        damagedQuantity: { type: integer }
+        legacyAcceptedQuantity: { type: integer, description: Earlier request-only receipts reconciled as accepted stock }
+        missingQuantity: { type: integer }
+        discrepancyNotes: { type: string }
+        receivedBy: { type: string }
+        receivedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Invoice:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
+ }
+        subtotal: { type: number }
+        total: { type: number }
+        issuedAt: { type: string, format: date-time }
+        expectedDeliveryDate: { type: string, format: date-time }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [issued, acknowledged, partially_received, received, cancelled] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Invoice:
+      type: object
+      properties:
+        _id: { type: string }
+        purchaseRequestId: { type: string }
+        supplierId: { type: string }
+        supplierName: { type: string }
+        itemName: { type: string }
+        sku: { type: string }
+        purchaseRequestTotal: { type: number }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date-time }
+        dueDate: { type: [string, 'null'], format: date-time }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        subtotal: { type: number }
+        taxTotal: { type: number }
+        total: { type: number }
+        status: { type: string, enum: [pending_review, approved, rejected] }
+        createdBy: { type: string }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkspaceAPIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+    AuthSession:
+      type: object
+      required: [token, expiresIn, user, company]
+      properties:
+        token: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        company:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            role: { type: string, enum: [owner, admin, staff] }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, admin, staff] }
+    InventoryItem:
+      type: object
+      properties:
+        _id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        onHand: { type: number }
+        reorderPoint: { type: number }
+        unitCost: { type: number }
+        dailyDemand: { type: number }
+        lowStock: { type: boolean }
+        daysOfCover: { type: [number, 'null'] }
+    PurchaseRequest:
+      type: object
+      properties:
+        _id: { type: string }
+        inventoryItemId: { type: string }
+        supplierId: { oneOf: [{ type: string }, { type: object }] }
+        itemName: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        orderedQuantity: { type: integer }
+        receivedQuantity: { type: integer }
+        orderedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        statusHistory: { type: array, items: { type: object } }
+        unitCost: { type: number }
+        totalCost: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        status: { type: string, enum: [pending, approved, rejected, ordered, partially_received, received, cancelled] }
+        rationale: { type: string }
+        createdAt: { type: string, format: date-time }
+ }
+    post:
+      tags: [Purchasing]
+      summary: Reverse a mistaken manual payment (owner/admin)
+      description: Creates an immutable reversal entry and reduces the linked invoice paid amount in the same MongoDB transaction. The original payment record is retained. A payment can only be reversed once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '201':
+          description: Reversal entry created and invoice balance restored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/workspace/invoices:
     get:
       tags: [Purchasing]

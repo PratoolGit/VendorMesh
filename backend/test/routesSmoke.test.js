@@ -5,6 +5,7 @@ import { createWorkspaceAPIKeysRouter } from '../routes/workspaceAPIKeys.js';
 import { createWorkspaceAIRouter } from '../routes/workspaceAI.js';
 import { createWorkspaceInvoicesRouter } from '../routes/workspaceInvoices.js';
 import { createWorkspacePurchaseOrdersRouter } from '../routes/workspacePurchaseOrders.js';
+import { createWorkspacePaymentsRouter } from '../routes/workspacePayments.js';
 import { createWorkspaceGoodsReceiptsRouter } from '../routes/workspaceGoodsReceipts.js';
 import { createWorkspaceReconciliationRouter } from '../routes/workspaceReconciliation.js';
 
@@ -26,6 +27,10 @@ test('workspace AI, API key management, and public API route modules load succes
     requireWorkspaceRole: roleGate
   }));
   assert.doesNotThrow(() => createWorkspacePurchaseOrdersRouter({
+    requireSession: passThrough,
+    requireWorkspaceRole: roleGate
+  }));
+  assert.doesNotThrow(() => createWorkspacePaymentsRouter({
     requireSession: passThrough,
     requireWorkspaceRole: roleGate
   }));

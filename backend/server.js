@@ -15,6 +15,7 @@ import InventoryItem from './models/InventoryItem.js';
 import Supplier from './models/Supplier.js';
 import PurchaseRequest from './models/PurchaseRequest.js';
 import PurchaseOrder from './models/PurchaseOrder.js';
+import { buildWorkspaceRecommendations } from './services/workspaceRecommendations.js';
 import AuditLog from './models/AuditLog.js';
 import { createWorkspaceInsightsRouter } from './routes/workspaceInsights.js';
 import { createAuditRouter } from './routes/audit.js';
@@ -23,6 +24,7 @@ import { createWorkspaceAIRouter } from './routes/workspaceAI.js';
 import { createWorkspaceAPIKeysRouter } from './routes/workspaceAPIKeys.js';
 import { createPublicAPIRouter } from './routes/publicAPI.js';
 import { createWorkspaceInvoicesRouter } from './routes/workspaceInvoices.js';
+import { createWorkspacePaymentsRouter } from './routes/workspacePayments.js';
 import { createWorkspacePurchaseOrdersRouter } from './routes/workspacePurchaseOrders.js';
 import { createWorkspaceGoodsReceiptsRouter } from './routes/workspaceGoodsReceipts.js';
 import { createWorkspaceReconciliationRouter } from './routes/workspaceReconciliation.js';
@@ -218,9 +220,40 @@ app.use('/api/workspace/ai', createWorkspaceAIRouter({ requireSession, requireWo
 app.use('/api/workspace/api-keys', createWorkspaceAPIKeysRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/v1', createPublicAPIRouter());
 app.use('/api/workspace/invoices', createWorkspaceInvoicesRouter({ requireSession, requireWorkspaceRole }));
+app.use('/api/workspace/payments', createWorkspacePaymentsRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/purchase-orders', createWorkspacePurchaseOrdersRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/goods-receipts', createWorkspaceGoodsReceiptsRouter({ requireSession, requireWorkspaceRole }));
 app.use('/api/workspace/reconciliation', createWorkspaceReconciliationRouter({ requireSession, requireWorkspaceRole }));
+
+app.get('/api/workspace/bootstrap', requireSession, wrap(async (req, res) => {
+  const scope = workspace(req);
+  const [inventoryRows, supplierRows, requestRows, inventoryCount, supplierCount, pendingApprovals, stockStats] = await Promise.all([
+    InventoryItem.find(scope).sort({ updatedAt: -1 }).limit(1000).lean(),
+    Supplier.find(scope).sort({ name: 1 }).limit(1000).lean(),
+    PurchaseRequest.find(scope).sort({ createdAt: -1 }).limit(500).populate('supplierId', 'name email').lean(),
+    InventoryItem.countDocuments(scope),
+    Supplier.countDocuments({ ...scope, active: true }),
+    PurchaseRequest.countDocuments({ ...scope, status: 'pending' }),
+    InventoryItem.aggregate([
+      { $match: { companyId: new mongoose.Types.ObjectId(req.session.companyId) } },
+      { $group: { _id: null, totalUnits: { $sum: '$onHand' }, lowStock: { $sum: { $cond: [{ $lte: ['$onHand', '$reorderPoint'] }, 1, 0] } }, inventoryValue: { $sum: { $multiply: ['$onHand', '$unitCost'] } } } }
+    ])
+  ]);
+  const inventory = inventoryRows.map(item => ({
+    ...item,
+    lowStock: item.onHand <= item.reorderPoint,
+    daysOfCover: item.dailyDemand > 0 ? Math.round((item.onHand / item.dailyDemand) * 10) / 10 : null
+  }));
+  const recommendations = buildWorkspaceRecommendations(inventoryRows, supplierRows.filter(supplier => supplier.active));
+  const summary = {
+    inventoryCount,
+    supplierCount,
+    pendingApprovals,
+    ...(stockStats[0] || { totalUnits: 0, lowStock: 0, inventoryValue: 0 }),
+    recentRequests: requestRows.slice(0, 8)
+  };
+  res.json({ summary, inventory, suppliers: supplierRows, requests: requestRows, recommendations });
+}));
 
 app.get('/api/workspace/summary', requireSession, wrap(async (req, res) => {
   const scope = workspace(req);
