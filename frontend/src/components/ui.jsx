@@ -159,10 +159,8 @@ export function Sheet({
 }
 
 export function CommandPalette({
-  open,
-  onClose,
-  items = [],
-  placeholder = 'Search commands and pages…'
+  open, onClose, items = [], records = [],
+  placeholder = 'Search commands, pages and workspace records…'
 }) {
   const inputRef = useRef(null);
   const dialogId = useId();
@@ -171,30 +169,34 @@ export function CommandPalette({
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return items;
-    return items.filter((item) => {
-      const haystack = [item.label, item.description, item.group, ...(item.keywords || [])]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+    const commandMatches = !needle ? items : items.filter((item) => {
+      const haystack = [item.label, item.description, item.group, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(needle);
     });
-  }, [items, query]);
+    // Wait for a two-character query and cap results to keep the palette responsive.
+    const recordMatches = needle.length < 2 ? [] : records.filter((item) => {
+      const haystack = [item.label, item.description, item.group, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(needle);
+    }).slice(0, 12);
+    return [...commandMatches, ...recordMatches];
+  }, [items, records, query]);
+
+  const groups = useMemo(() => {
+    const byGroup = new Map();
+    matches.forEach((item, index) => {
+      const label = item.group || 'Results';
+      if (!byGroup.has(label)) byGroup.set(label, []);
+      byGroup.get(label).push({ item, index });
+    });
+    return Array.from(byGroup, ([label, groupItems]) => ({ label, items: groupItems }));
+  }, [matches]);
 
   useEffect(() => {
-    if (!open) {
-      setQuery('');
-      setActiveIndex(0);
-      return undefined;
-    }
+    if (!open) { setQuery(''); setActiveIndex(0); return undefined; }
     inputRef.current?.focus();
     return undefined;
   }, [open]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
+  useEffect(() => { setActiveIndex(0); }, [query]);
   if (!open) return null;
 
   const activate = (item) => {
@@ -204,69 +206,44 @@ export function CommandPalette({
   };
 
   return (
-    <div
-      className="vm-command-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose?.();
-      }}
-    >
-      <section
-        className="vm-command"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-        aria-describedby={dialogId}
-      >
+    <div className="vm-command-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <section className="vm-command" role="dialog" aria-modal="true" aria-label="Workspace search and quick actions">
         <div className="vm-command__search">
           <span aria-hidden="true">⌕</span>
           <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            placeholder={placeholder}
+            ref={inputRef} type="search" value={query} placeholder={placeholder}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                onClose?.();
-              } else if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                setActiveIndex((index) => Math.min(index + 1, Math.max(matches.length - 1, 0)));
-              } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                setActiveIndex((index) => Math.max(index - 1, 0));
-              } else if (event.key === 'Enter') {
-                event.preventDefault();
-                activate(matches[activeIndex]);
-              }
+              if (event.key === 'Escape') { event.preventDefault(); onClose?.(); }
+              else if (event.key === 'ArrowDown') { event.preventDefault(); setActiveIndex((index) => Math.min(index + 1, Math.max(matches.length - 1, 0))); }
+              else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((index) => Math.max(index - 1, 0)); }
+              else if (event.key === 'Enter') { event.preventDefault(); activate(matches[activeIndex]); }
             }}
-            aria-label="Search commands"
-            aria-controls={dialogId}
-            aria-autocomplete="list"
+            aria-label="Search pages, actions and workspace records" aria-controls={dialogId} aria-autocomplete="list"
+            aria-activedescendant={matches[activeIndex] ? dialogId + '-option-' + (matches[activeIndex].id || activeIndex) : undefined}
           />
           <kbd>ESC</kbd>
         </div>
-        <div className="vm-command__list" id={dialogId} role="listbox" aria-label="Matching commands">
-          {matches.length === 0 && <div className="vm-command__empty">No matching commands</div>}
-          {matches.map((item, index) => (
-            <button
-              key={item.id || item.label}
-              type="button"
-              role="option"
-              aria-selected={index === activeIndex}
-              className="vm-command__item"
-              disabled={Boolean(item.disabled)}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => activate(item)}
-            >
-              {item.icon && <span aria-hidden="true">{item.icon}</span>}
-              <span className="vm-command__item-main">
-                <strong>{item.label}</strong>
-                {item.description && <small>{item.description}</small>}
-              </span>
-              {item.shortcut && <kbd>{item.shortcut}</kbd>}
-            </button>
+        <div className="vm-command__list" id={dialogId} role="listbox" aria-label="Search results">
+          {matches.length === 0 && <div className="vm-command__empty">No matching pages, actions or records. Try a name, SKU, supplier or request status.</div>}
+          {groups.map((group) => (
+            <div className="vm-command__group" role="group" aria-label={group.label} key={group.label}>
+              <div className="vm-command__group-label" aria-hidden="true">{group.label}</div>
+              {group.items.map(({ item, index }) => (
+                <button id={dialogId + '-option-' + (item.id || index)} key={item.id || item.label} type="button" role="option"
+                  aria-selected={index === activeIndex} className="vm-command__item" disabled={Boolean(item.disabled)}
+                  onMouseEnter={() => setActiveIndex(index)} onClick={() => activate(item)}>
+                  {item.icon && <span className="vm-command__item-icon" aria-hidden="true">{item.icon}</span>}
+                  <span className="vm-command__item-main"><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span>
+                  {item.shortcut && <kbd>{item.shortcut}</kbd>}
+                </button>
+              ))}
+            </div>
           ))}
+        </div>
+        <div className="vm-command__scope">
+          <span>Search covers loaded inventory, suppliers and purchase requests.</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open</span>
         </div>
       </section>
     </div>
