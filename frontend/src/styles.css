@@ -1546,3 +1546,39 @@ button:active:not(:disabled){transition-duration:.06s}
 
 .payment-reversal-amount{color:#b45309}
 :root[data-theme="dark"] .payment-reversal-amount{color:#fbbf24}
+
+
+/* Data-grid refinement: keep column labels visible and make dense workspace tables easier to scan. */
+.table-card {
+  background: var(--vm-surface);
+  border-color: var(--vm-border);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+}
+.table-scroll {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.table-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--vm-surface-hover);
+  color: var(--vm-subtle);
+  backdrop-filter: blur(12px);
+}
+.table-scroll td {
+  border-bottom-color: var(--vm-border);
+  color: var(--vm-muted);
+}
+.table-scroll td b { color: var(--vm-text); }
+.table-scroll tbody tr { transition: background 140ms ease; }
+.table-scroll tbody tr:hover td {
+  background: var(--vm-surface-hover);
+  color: var(--vm-text);
+}
+.status { border-radius: 999px; padding: 5px 9px; }
+@media (prefers-reduced-motion: reduce) {
+  .table-scroll tbody tr { transition: none; }
+}
