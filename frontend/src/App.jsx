@@ -604,7 +604,7 @@ export default function App() {
       <footer className="footer"><span>VENDORMESH · PROCUREMENT WORKSPACE</span><span>Human-reviewed decisions. Clear operational records.</span></footer>
       </main>
     </div>
-    <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} items={commandItems} records={searchRecords} placeholder="Search pages, actions, inventory, suppliers or requests..." />
+    <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} items={commandItems} records={searchRecords} placeholder="Search pages, actions, inventory, suppliers, POs, GRNs, invoices or payments..." />
   </>;
 }
 function PageLoading() { return <div className="vm-page-loading" role="status"><span className="vm-loading-spinner" aria-hidden="true"/><span>Loading workspace view…</span></div>; }
@@ -774,7 +774,7 @@ function InventoryTable({items,currency,onCreateRequest,searchRequest,workspaceI
     setSelectedIds((current)=>checked?Array.from(new Set([...current,...ids])):current.filter((id)=>!ids.includes(id)));
   }
   function downloadRows(rows){exportCsv(rows,columns,'vendormesh-inventory.csv');}
-  function chooseStockView(value){setStockFilter(value);setActiveSavedView('');}
+  function chooseStockView(value){setQuery('');setStockFilter(value);setActiveSavedView('');}
   function saveCurrentView(){
     const name=window.prompt('Name this personal inventory view:','My inventory view');
     if(!name || !name.trim()) return;
