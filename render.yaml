@@ -32,7 +32,7 @@ services:
       - key: PUBLIC_API_URL
         value: https://vendormesh-api.onrender.com
       - key: CLIENT_ORIGIN
-        value: https://vendormesh-web.onrender.com
+        value: https://vendor-mesh.vercel.app,https://vendormesh-web.onrender.com
       - key: INITIAL_BANK_BALANCE
         value: "25000"
       - key: MIN_CASH_RESERVE
