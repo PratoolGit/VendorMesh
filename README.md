@@ -135,8 +135,8 @@ The included `render.yaml` is a Blueprint starting point. Review service names/U
 1. Push this repository to a GitHub repository.
 2. Create a MongoDB Atlas database and configure its connection string as `MONGODB_URI` in the Render API service.
 3. In Render, choose **New → Blueprint** and select the repository containing `render.yaml`.
-4. Set these secrets on the API service: `ADMIN_API_TOKEN`, `AI_SETTINGS_ENCRYPTION_KEY`, `PAYPAL_CLIENT_ID`, and `PAYPAL_CLIENT_SECRET`. Add `PAYPAL_VENDOR_PAYEE_EMAIL` if you intend to test Payouts.
-5. Verify the backend's `PUBLIC_API_URL` and `CLIENT_ORIGIN` match the actual service URLs. Verify frontend `VITE_API_URL` points to the API URL.
+4. Set these secrets on the API service: `AUTH_TOKEN_SECRET` (a random value of at least 32 characters), `ADMIN_API_TOKEN`, `AI_SETTINGS_ENCRYPTION_KEY`, `PAYPAL_CLIENT_ID`, and `PAYPAL_CLIENT_SECRET`. Add `PAYPAL_VENDOR_PAYEE_EMAIL` if you intend to test Payouts. **`AUTH_TOKEN_SECRET` is required for registration and login**; without it, session creation fails.
+5. Verify the backend's `PUBLIC_API_URL` and `CLIENT_ORIGIN` match the actual service URLs. `CLIENT_ORIGIN` must include `https://vendor-mesh.vercel.app`. The frontend production build reads `frontend/.env.production`; keep `VITE_API_URL` pointed at `https://vendormesh-api.onrender.com` (or your actual API service URL). In Vercel, set the project root to `frontend` and redeploy after changing build settings.
 6. In the current workspace dashboard, open **AI copilot**, configure a provider credential for that workspace, test it, save it, and ask an advisory procurement question. The legacy AI/treasury API remains separate and uses `X-Admin-Token`.
 7. Register the PayPal webhook against the deployed API URL, then add its generated ID as `PAYPAL_WEBHOOK_ID` on the API service and redeploy/restart.
 8. Test `/api/health`, read-only dashboard loading, AI connection testing, a Sandbox order approval, and webhook status reconciliation before recording a demo.
