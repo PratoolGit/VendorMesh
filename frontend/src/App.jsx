@@ -9,14 +9,20 @@ const WorkspaceGoodsReceipts = lazy(() => import('./components/WorkspaceGoodsRec
 const WorkspacePayments = lazy(() => import('./components/WorkspacePayments.jsx'));
 const WorkspaceReconciliation = lazy(() => import('./components/WorkspaceReconciliation.jsx'));
 
-const API = import.meta.env.VITE_API_URL || '';
+const API = (import.meta.env.VITE_API_URL || '').replace(/\\/+$/, '');
 const tokenKey = 'vendormesh.session';
 async function api(path, options = {}) {
   const token = sessionStorage.getItem(tokenKey) || '';
-  const res = await fetch(`${API}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) }
-  });
+  let res;
+  try {
+    res = await fetch(`${API}${path}`, {
+      ...options,
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) }
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('The request timed out. The API may be waking up; please try again.');
+    throw new Error('Cannot reach the VendorMesh API. Check that the backend is deployed and VITE_API_URL points to its public URL.');
+  }
   if (res.status === 204) return null;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
