@@ -242,7 +242,7 @@ export function CommandPalette({
           ))}
         </div>
         <div className="vm-command__scope">
-          <span>Search covers loaded inventory, suppliers and purchase requests.</span>
+          <span>Search loaded inventory, suppliers, requests, POs, GRNs, invoices and payments.</span>
           <span><kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open</span>
         </div>
       </section>
