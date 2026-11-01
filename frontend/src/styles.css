@@ -856,6 +856,13 @@ tbody tr:hover td { background: rgba(255,255,255,0.025); }
 .vm-command__item-main strong { font-size: 11px; font-weight: 600; }
 .vm-command__item-main small { color: var(--vm-muted); font-size: 10px; }
 .vm-command__empty { padding: 28px 18px; color: var(--vm-muted); text-align: center; font-size: 11px; }
+.vm-command__group + .vm-command__group { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--vm-border); }
+.vm-command__group-label { padding: 7px 10px 5px; color: var(--vm-subtle); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.vm-command__item-icon { display: grid; flex: 0 0 25px; width: 25px; height: 25px; place-items: center; border: 1px solid var(--vm-border); border-radius: 7px; color: var(--vm-muted); background: rgba(255,255,255,.025); font-size: 13px; }
+.vm-command__scope { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--vm-border); color: var(--vm-subtle); font-size: 9px; }
+.vm-command__scope > span:last-child { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.vm-command__scope kbd { padding: 2px 5px; border: 1px solid var(--vm-border); border-radius: 4px; color: var(--vm-muted); background: rgba(255,255,255,.035); font: 500 9px var(--vm-font-mono); }
+@media(max-width:560px){.vm-command__scope{align-items:flex-start;flex-direction:column}.vm-command__scope>span:last-child{white-space:normal}}
 .vm-skeleton {
   display: block;
   max-width: 100%;
