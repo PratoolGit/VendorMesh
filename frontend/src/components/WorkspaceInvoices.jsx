@@ -8,7 +8,7 @@ function money(value, currency = 'USD') {
 }
 function Tile({ label, value, note }) { return <article className="metric-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></article>; }
 
-export default function WorkspaceInvoices({ api, role, currency: defaultCurrency = 'USD', workspaceId }) {
+export default function WorkspaceInvoices({ api, role, currency: defaultCurrency = 'USD', workspaceId, searchRequest }) {
   const [requests, setRequests] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [form, setForm] = useState({ purchaseRequestId: '', invoiceNumber: '', invoiceDate: today(), dueDate: '', currency: defaultCurrency, subtotal: '', taxTotal: '0' });
@@ -17,6 +17,8 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [draftReady, setDraftReady] = useState(false);
+  const [query, setQuery] = useState('');
+  useEffect(() => { if (searchRequest?.tab === 'invoices' && searchRequest.sequence) setQuery(searchRequest.query); }, [searchRequest?.sequence]);
   const draftKey = workspaceId ? 'vendormesh.draft.' + workspaceId + '.invoice' : '';
   const manager = ['owner', 'admin'].includes(role);
   const eligible = useMemo(() => requests.filter(item => eligibleStatuses.has(item.status)), [requests]);
@@ -98,6 +100,7 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
 
   if (loading) return <div className="loading">Loading invoice register…</div>;
   const pendingCount = invoices.filter(item => item.status === 'pending_review').length;
+  const visibleInvoices = invoices.filter(invoice => !query.trim() || [invoice.invoiceNumber, invoice.supplierName, invoice.itemName, invoice.sku, invoice.status].some(value => String(value || '').toLowerCase().includes(query.trim().toLowerCase())));
   return <section className="workspace-invoices">
     <div className="section-heading"><div><h2>Invoice register</h2><p>Record supplier invoices against approved purchases and review the totals.</p></div><button type="button" className="secondary" onClick={load} disabled={busy}>Refresh</button></div>
     {(error || notice) && <div className={error ? 'flash flash-error' : 'flash flash-ok'} role={error ? 'alert' : 'status'}>{error || notice}</div>}
@@ -127,9 +130,9 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
       <button type="submit" className="primary" disabled={busy || !selected || form.invoiceNumber.trim().length<2 || !form.invoiceDate || !Number.isFinite(subtotal) || subtotal<=0 || !Number.isFinite(taxTotal) || taxTotal<0}>{busy?'Saving…':'Record for review'}</button>
     </form>
     <section className="table-card">
-      <div className="invoice-table-heading"><div><h3>Recent invoices</h3><p className="muted">Owner/admins can approve or reject pending records.</p></div></div>
+      <div className="invoice-table-heading"><div><h3>Recent invoices</h3><p className="muted">Owner/admins can approve or reject pending records.</p></div><label className="payment-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search invoice, supplier, SKU…" aria-label="Search invoices"/></label></div>
       <div className="table-scroll vm-interactive-table" role="region" aria-label="Invoice records table" tabIndex="0"><table aria-label="Invoice records"><thead><tr><th>Invoice</th><th>Supplier / item</th><th>Invoice date</th><th>Order total</th><th>Invoice total</th><th>Difference</th><th>Status</th><th>Action</th></tr></thead><tbody>
-        {invoices.map(invoice => {
+        {visibleInvoices.map(invoice => {
           const difference = Math.round((Number(invoice.total)-Number(invoice.purchaseRequestTotal))*100)/100;
           const mismatch = Math.abs(difference)>0.01;
           return <tr key={invoice._id}>
@@ -144,7 +147,7 @@ export default function WorkspaceInvoices({ api, role, currency: defaultCurrency
           </tr>;
         })}
       </tbody></table></div>
-      {invoices.length===0 && <p className="muted invoice-empty">No invoices have been recorded for this workspace.</p>}
+      {visibleInvoices.length===0 && <p className="muted invoice-empty">No invoices have been recorded for this workspace.</p>}
     </section>
   </section>;
 }
