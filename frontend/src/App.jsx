@@ -239,6 +239,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [searchRequest, setSearchRequest] = useState({ tab: '', query: '', sequence: 0 });
+  const [searchExtras, setSearchExtras] = useState({ orders: [], receipts: [], invoices: [], payments: [], loaded: false });
   const [focusTarget, setFocusTarget] = useState('');
   const [draftsReady, setDraftsReady] = useState(false);
   const draftScope = String(session?.company?.id || session?.company?._id || '');
@@ -283,6 +284,22 @@ export default function App() {
     window.addEventListener('keydown', handleShortcut);
     return () => window.removeEventListener('keydown', handleShortcut);
   }, [session]);
+
+  useEffect(() => {
+    if (!commandOpen || searchExtras.loaded || !session) return;
+    let cancelled = false;
+    Promise.allSettled([
+      api('/api/workspace/purchase-orders?limit=100'),
+      api('/api/workspace/goods-receipts?limit=100'),
+      api('/api/workspace/invoices?limit=100'),
+      api('/api/workspace/payments?limit=200')
+    ]).then((results) => {
+      if (cancelled) return;
+      const rows = results.map((result) => result.status === 'fulfilled' ? result.value?.data || [] : []);
+      setSearchExtras({ orders: rows[0], receipts: rows[1], invoices: rows[2], payments: rows[3], loaded: true });
+    });
+    return () => { cancelled = true; };
+  }, [commandOpen, searchExtras.loaded, session?.company?.id]);
 
   useEffect(() => {
     if (searchRequest.tab && searchRequest.tab !== tab) {
@@ -436,6 +453,34 @@ export default function App() {
         keywords: [supplier.name, supplier.email, supplier.paymentTerms, 'supplier', supplier._id], icon: '◇',
         onSelect: () => openRecord('suppliers', supplier.name || supplier.email)
       })),
+      ...searchExtras.orders.map((order) => ({
+        id: 'record-order-' + order._id, group: 'Purchase orders',
+        label: order.poNumber || 'Purchase order',
+        description: 'Purchase order · ' + (order.supplierSnapshot?.name || 'Supplier') + ' · ' + (order.lineItems?.[0]?.itemName || 'Item') + ' · ' + String(order.status || '').replaceAll('_', ' '),
+        keywords: [order.poNumber, order.supplierSnapshot?.name, order.lineItems?.[0]?.itemName, order.lineItems?.[0]?.sku, order.status, order._id], icon: '▤',
+        onSelect: () => openRecord('purchase-orders', order.poNumber || order.supplierSnapshot?.name || '')
+      })),
+      ...searchExtras.receipts.map((receipt) => ({
+        id: 'record-grn-' + receipt._id, group: 'Goods receipts',
+        label: receipt.receiptNumber || 'Goods receipt',
+        description: 'Goods receipt · ' + (receipt.poNumber || 'Purchase order') + ' · ' + (receipt.supplierName || 'Supplier') + ' · ' + (receipt.itemName || 'Item'),
+        keywords: [receipt.receiptNumber, receipt.poNumber, receipt.supplierName, receipt.itemName, receipt.sku, receipt._id], icon: '⇩',
+        onSelect: () => openRecord('goods-receipts', receipt.receiptNumber || receipt.poNumber || receipt.supplierName || '')
+      })),
+      ...searchExtras.invoices.map((invoice) => ({
+        id: 'record-invoice-' + invoice._id, group: 'Invoices',
+        label: invoice.invoiceNumber || 'Supplier invoice',
+        description: 'Invoice · ' + (invoice.supplierName || 'Supplier') + ' · ' + (invoice.itemName || 'Item') + ' · ' + String(invoice.status || '').replaceAll('_', ' '),
+        keywords: [invoice.invoiceNumber, invoice.supplierName, invoice.itemName, invoice.sku, invoice.status, invoice._id], icon: '▧',
+        onSelect: () => openRecord('invoices', invoice.invoiceNumber || invoice.supplierName || '')
+      })),
+      ...searchExtras.payments.map((payment) => ({
+        id: 'record-payment-' + payment._id, group: 'Supplier payments',
+        label: payment.invoiceNumber || 'Payment record',
+        description: (payment.recordType === 'reversal' ? 'Payment reversal' : 'Payment') + ' · ' + (payment.supplierName || 'Supplier') + ' · ' + payment.currency + ' ' + Number(payment.amount || 0).toLocaleString(),
+        keywords: [payment.invoiceNumber, payment.supplierName, payment.reference, payment.method, payment.recordType, payment._id], icon: '₹',
+        onSelect: () => openRecord('payments', payment.invoiceNumber || payment.supplierName || payment.reference || '')
+      })),
       ...requests.slice(0, 500).map((request) => ({
         id: 'record-request-' + request._id, group: 'Workspace records',
         label: (request.itemName || 'Purchase request') + (request.sku ? ' · ' + request.sku : ''),
@@ -444,7 +489,7 @@ export default function App() {
         onSelect: () => openRecord('purchases', request.sku || request.itemName || '')
       }))
     ];
-  }, [inventory, suppliers, requests, session?.company?.currency]);
+  }, [inventory, suppliers, requests, searchExtras, session?.company?.currency]);
 
   if (loading) return <div className="loading vm-loading-shell" role="status" aria-live="polite"><div className="vm-loading-inner"><div className="vm-loading-brand"><img src="/vendormesh-mark.svg" alt="" /><b>VendorMesh</b></div><span className="dashboard-kicker">WORKSPACE</span><strong>Loading your workspace…</strong><div className="vm-loading-skeleton" aria-hidden="true"><i/><i/><i/></div></div></div>;
   if (!session) return <AuthScreen onAuthenticated={authenticated} />;
@@ -542,10 +587,10 @@ export default function App() {
       {tab === 'suppliers' && <><div className="section-heading"><div><h2>Supplier directory</h2><p>Keep contact details, lead times and reliability in one place.</p></div></div><form className="form-card" data-command-target="supplier-form" onSubmit={addSupplier}><h3>Add supplier</h3><p className="draft-hint">Drafts auto-save in this tab for this workspace and are cleared when you sign out.</p><div className="fields"><Field label="Supplier name" value={supplierForm.name} onChange={v=>setSupplierForm({...supplierForm,name:v})} required/><Field label="Contact email" type="email" value={supplierForm.email} onChange={v=>setSupplierForm({...supplierForm,email:v})}/>{['owner','admin'].includes(session.company?.role) && <><Field label="Lead time (days)" type="number" min="0" value={supplierForm.leadTimeDays} onChange={v=>setSupplierForm({...supplierForm,leadTimeDays:v})}/><Field label="Reliability (0–100)" type="number" min="0" max="100" value={supplierForm.reliabilityScore} onChange={v=>setSupplierForm({...supplierForm,reliabilityScore:v})}/><Field label="Payment terms" value={supplierForm.paymentTerms} onChange={v=>setSupplierForm({...supplierForm,paymentTerms:v})}/></>}</div><button className="primary" disabled={busy}>{busy?'Saving…':'Add supplier'}</button></form><SupplierDirectory suppliers={suppliers} searchRequest={searchRequest}/>{suppliers.length===0&&<Empty title="Build your supplier network" text="Add your trusted vendors before creating purchase requests."/>}</>}
       {tab === 'recommendations' && <><div className="section-heading"><div><h2>Inventory recommendations</h2><p>Rules-based suggestions from this workspace's stock, demand and supplier lead times. No orders are placed automatically.</p></div><button className="secondary" onClick={() => act(async () => { const result = await api('/api/workspace/recommendations'); setRecommendations(result.recommendations || []); }, 'Recommendations refreshed.')}>Refresh insights</button></div>{recommendations.length === 0 ? <Empty title="No urgent replenishment signals" text="Add daily demand, reorder points and supplier records to make these insights more useful."/> : <div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Item</th><th>Priority</th><th>On hand</th><th>Days of cover</th><th>Suggested qty</th><th>Supplier</th><th>Why flagged</th><th>Next step</th></tr></thead><tbody>{recommendations.map(r=><tr key={r.inventoryItemId}><td><b>{r.name}</b><small className="table-sub">{r.sku}</small></td><td><span className={`status ${r.priority==='high'?'status-low':r.priority==='medium'?'status-pending':'status-ok'}`}>{r.priority}</span></td><td>{r.onHand}</td><td>{r.daysOfCover===null?'—':r.daysOfCover}</td><td>{r.suggestedQuantity}</td><td>{r.supplier ? <>{r.supplier.name}<small className="table-sub">{r.supplier.leadTimeDays} day lead · {r.supplier.reliabilityScore}% reliable</small></> : 'Not linked'}</td><td>{r.reasons.join(' ')}</td><td>{r.action==='review_purchase_request' && r.supplier ? <button className="secondary" onClick={()=>{setRequestForm({inventoryItemId:r.inventoryItemId,supplierId:r.supplier.id,quantity:String(Math.max(1,r.suggestedQuantity)),unitCost:String(inventory.find(i=>i._id===r.inventoryItemId)?.unitCost ?? 0),rationale:r.reasons.join(' ')});setTab('purchases');}}>Prepare request →</button> : <span className="muted">Monitor stock</span>}</td></tr>)}</tbody></table></div></div>}</>}
       {tab === 'ai' && <Suspense fallback={<PageLoading />}><WorkspaceAI api={api} session={session} /></Suspense>}
-      {tab === 'invoices' && <Suspense fallback={<PageLoading />}><WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} workspaceId={draftScope} /></Suspense>}
-      {tab === 'payments' && <Suspense fallback={<PageLoading />}><WorkspacePayments api={api} role={session.company?.role} currency={session.company?.currency} /></Suspense>}
-      {tab === 'purchase-orders' && <Suspense fallback={<PageLoading />}><WorkspacePurchaseOrders api={api} requests={requests} suppliers={suppliers} role={session.company?.role} currency={session.company?.currency} initialRequestId={poRequestId} onCreated={async () => { setPoRequestId(''); await refresh(); }} onRecordReceipt={startGoodsReceipt} /></Suspense>}
-      {tab === 'goods-receipts' && <Suspense fallback={<PageLoading />}><WorkspaceGoodsReceipts api={api} initialOrderId={grnOrderId} onRecorded={async () => { setGrnOrderId(''); await refresh(); }} /></Suspense>}
+      {tab === 'invoices' && <Suspense fallback={<PageLoading />}><WorkspaceInvoices api={api} role={session.company?.role} currency={session.company?.currency} workspaceId={draftScope} searchRequest={searchRequest} /></Suspense>}
+      {tab === 'payments' && <Suspense fallback={<PageLoading />}><WorkspacePayments api={api} role={session.company?.role} currency={session.company?.currency} searchRequest={searchRequest} /></Suspense>}
+      {tab === 'purchase-orders' && <Suspense fallback={<PageLoading />}><WorkspacePurchaseOrders api={api} requests={requests} suppliers={suppliers} role={session.company?.role} currency={session.company?.currency} searchRequest={searchRequest} initialRequestId={poRequestId} onCreated={async () => { setPoRequestId(''); await refresh(); }} onRecordReceipt={startGoodsReceipt} /></Suspense>}
+      {tab === 'goods-receipts' && <Suspense fallback={<PageLoading />}><WorkspaceGoodsReceipts api={api} searchRequest={searchRequest} initialOrderId={grnOrderId} onRecorded={async () => { setGrnOrderId(''); await refresh(); }} /></Suspense>}
       {tab === 'reconciliation' && <Suspense fallback={<PageLoading />}><WorkspaceReconciliation api={api} /></Suspense>}
       {tab === 'api-keys' && <Suspense fallback={<PageLoading />}><WorkspaceAPIKeys api={api} /></Suspense>}
       {tab === 'anomalies' && <><div className="section-heading"><div><h2>Review signals</h2><p>Rule-based checks across recent workspace purchase requests. Flags never approve, reject, or pay automatically.</p></div><button className="secondary" onClick={loadAnomalies}>Refresh review queue</button></div>{anomalyResult && <><p className="inline-hint">{anomalyResult.warning} The review set includes the latest 500 purchase requests only.</p><div className="metric-grid"><Metric label="Signals found" value={anomalyResult.count} note="Not fraud findings" icon="!"/><Metric label="High-priority review" value={anomalyResult.anomalies.filter(a=>a.severity==='high_priority_review').length} note="Human review recommended" icon="⌁" tone="amber"/><Metric label="Review recommended" value={anomalyResult.anomalies.filter(a=>a.severity==='review_recommended').length} note="Verify record consistency" icon="✓"/></div><div className="table-card"><div className="table-scroll" role="region" aria-label="Workspace data table" tabIndex="0"><table><thead><tr><th>Priority</th><th>Signal</th><th>Record</th><th>Finding</th><th>Evidence</th><th>Suggested review</th></tr></thead><tbody>{anomalyResult.anomalies.map(a=><tr key={a.id}><td><span className={'status '+(a.severity==='high_priority_review'?'status-rejected':'status-pending')}>{a.severity.replaceAll('_',' ')}</span></td><td><b>{a.title}</b><small className="table-sub">{a.type.replaceAll('_',' ')}</small></td><td><code>{a.recordId}</code><small className="table-sub">{a.evidence.itemName || 'Purchase request'}</small></td><td>{a.message}</td><td>{a.evidence.supplierName || 'Supplier unavailable'}{a.evidence.totalCost !== undefined && <small className="table-sub">Total {money(a.evidence.totalCost,a.evidence.currency)} · Limit {money(a.evidence.maximumAllowed,a.evidence.currency)}</small>}{a.evidence.previousRequestId && <small className="table-sub">Similar request: {a.evidence.previousRequestId}</small>}</td><td>{a.nextStep}</td></tr>)}</tbody></table></div>{anomalyResult.count===0&&<Empty title="No review signals found" text="No matching review conditions were found in the latest requests. This is not a guarantee that all records are correct."/>}</div></>}</>}
