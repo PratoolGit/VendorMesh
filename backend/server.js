@@ -42,7 +42,11 @@ dotenv.config();
 dotenv.config({ path: path.resolve(here, '../.env') });
 
 const PORT = Number(process.env.PORT) || 5000;
-const ORIGINS = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map((s) => s.trim());
+const configuredOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map((s) => s.trim()).filter(Boolean);
+// Always allow the canonical Vercel production frontend as well as explicitly configured
+// preview/Render origins. This prevents auth and workspace requests from failing at CORS
+// when an older Render environment variable still points at the previous static frontend.
+const ORIGINS = [...new Set([...configuredOrigins, 'https://vendor-mesh.vercel.app'])];
 const CLIENT_URL = ORIGINS[0];
 
 const app = express();
