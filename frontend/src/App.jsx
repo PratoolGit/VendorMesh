@@ -9,7 +9,7 @@ const WorkspaceGoodsReceipts = lazy(() => import('./components/WorkspaceGoodsRec
 const WorkspacePayments = lazy(() => import('./components/WorkspacePayments.jsx'));
 const WorkspaceReconciliation = lazy(() => import('./components/WorkspaceReconciliation.jsx'));
 
-const API = (import.meta.env.VITE_API_URL || '').replace(/\\/+$/, '');
+const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 const tokenKey = 'vendormesh.session';
 async function api(path, options = {}) {
   const token = sessionStorage.getItem(tokenKey) || '';
