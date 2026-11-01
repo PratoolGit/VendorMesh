@@ -416,16 +416,6 @@ export default function App() {
     const titles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',payments:'Supplier payment register',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
     document.title = session ? `${titles[tab] || 'Workspace'} · VendorMesh` : 'VendorMesh — Procurement & Inventory Workspace';
   }, [tab, session?.company?.id]);
-  if (loading) return <div className="loading vm-loading-shell" role="status" aria-live="polite"><div className="vm-loading-inner"><div className="vm-loading-brand"><img src="/vendormesh-mark.svg" alt="" /><b>VendorMesh</b></div><span className="dashboard-kicker">WORKSPACE</span><strong>Loading your workspace…</strong><div className="vm-loading-skeleton" aria-hidden="true"><i/><i/><i/></div></div></div>;
-  if (!session) return <AuthScreen onAuthenticated={authenticated} />;
-
-  const lowCount = inventory.filter((i) => i.lowStock).length;
-  const firstName = (session.user?.name || 'there').trim().split(/\s+/)[0];
-  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
-  const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
-  const isManager = ['owner', 'admin'].includes(session.company?.role);
-  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['purchase-orders', 'Purchase orders', 'purchases'], ['goods-receipts', 'Goods receipts', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['payments', 'Supplier payments', 'payments'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(isManager ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
-  const pageTitles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',payments:'Supplier payment register',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
   const searchRecords = useMemo(() => {
     const openRecord = (targetTab, query) => {
       setSearchRequest((current) => ({ tab: targetTab, query, sequence: current.sequence + 1 }));
@@ -456,6 +446,16 @@ export default function App() {
     ];
   }, [inventory, suppliers, requests, session?.company?.currency]);
 
+  if (loading) return <div className="loading vm-loading-shell" role="status" aria-live="polite"><div className="vm-loading-inner"><div className="vm-loading-brand"><img src="/vendormesh-mark.svg" alt="" /><b>VendorMesh</b></div><span className="dashboard-kicker">WORKSPACE</span><strong>Loading your workspace…</strong><div className="vm-loading-skeleton" aria-hidden="true"><i/><i/><i/></div></div></div>;
+  if (!session) return <AuthScreen onAuthenticated={authenticated} />;
+
+  const lowCount = inventory.filter((i) => i.lowStock).length;
+  const firstName = (session.user?.name || 'there').trim().split(/\s+/)[0];
+  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+  const isManager = ['owner', 'admin'].includes(session.company?.role);
+  const nav = [['overview', 'Overview', 'overview'], ['inventory', 'Inventory', 'inventory'], ['suppliers', 'Suppliers', 'suppliers'], ['purchases', 'Purchasing', 'purchases'], ['purchase-orders', 'Purchase orders', 'purchases'], ['goods-receipts', 'Goods receipts', 'purchases'], ['invoices', 'Invoices', 'invoices'], ['payments', 'Supplier payments', 'payments'], ['recommendations', 'AI insights', 'sparkles'], ['forecast', 'Forecast', 'forecast'], ['anomalies', 'Review queue', 'anomalies'], ['pricing', 'Pricing lab', 'pricing'], ...(isManager ? [['reconciliation', 'Reconciliation', 'reconciliation'], ['team', 'Team access', 'team'], ['audit', 'Audit log', 'audit'], ['ai', 'AI copilot', 'sparkles'], ['api-keys', 'API access', 'key']] : [])];
+  const pageTitles = {overview:'Procurement overview',inventory:'Inventory control',suppliers:'Supplier directory',purchases:'Purchase approvals','purchase-orders':'Purchase order register','goods-receipts':'Goods receipt notes',invoices:'Invoice review',payments:'Supplier payment register',reconciliation:'Financial reconciliation',recommendations:'Replenishment intelligence',forecast:'Inventory forecast',anomalies:'Risk review queue',pricing:'Pricing scenario lab',ai:'AI procurement copilot','api-keys':'External API access',team:'Team access & permissions',audit:'Workspace audit trail'};
   const commandItems = [
     ...nav.map(([id, label]) => ({ id: 'page-' + id, group: 'Navigation', label: 'Go to ' + label, description: pageTitles[id], icon: '↗', onSelect: () => setTab(id) })),
     { id: 'new-inventory', group: 'Quick actions', label: 'Add inventory item', description: 'Open the inventory form', icon: '+', onSelect: () => { setTab('inventory'); setFocusTarget('inventory-form'); } },
