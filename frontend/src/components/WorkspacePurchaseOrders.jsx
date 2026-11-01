@@ -25,7 +25,7 @@ function makeForm(requestId, requests, suppliers) {
   };
 }
 
-export default function WorkspacePurchaseOrders({ api, requests = [], suppliers = [], role, currency = 'USD', initialRequestId = '', onCreated, onRecordReceipt }) {
+export default function WorkspacePurchaseOrders({ api, requests = [], suppliers = [], role, currency = 'USD', initialRequestId = '', onCreated, onRecordReceipt, searchRequest }) {
   const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(() => makeForm(initialRequestId, requests, suppliers));
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,8 @@ export default function WorkspacePurchaseOrders({ api, requests = [], suppliers 
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [printOrder, setPrintOrder] = useState(null);
+  const [query, setQuery] = useState('');
+  useEffect(() => { if (searchRequest?.tab === 'purchase-orders' && searchRequest.sequence) setQuery(searchRequest.query); }, [searchRequest?.sequence]);
   const manager = ['owner', 'admin'].includes(role);
   const approvedRequests = useMemo(() => requests.filter(row => row.status === 'approved'), [requests]);
   const selectedRequest = approvedRequests.find(row => row._id === form.purchaseRequestId) || null;
@@ -101,6 +103,7 @@ export default function WorkspacePurchaseOrders({ api, requests = [], suppliers 
   if (loading) return <div className="loading">Loading purchase order register…</div>;
   const issuedCount = orders.filter(order => ['issued', 'acknowledged'].includes(order.status)).length;
   const receivedCount = orders.filter(order => order.status === 'received').length;
+  const visibleOrders = orders.filter(order => !query.trim() || [order.poNumber, order.supplierSnapshot?.name, order.lineItems?.[0]?.itemName, order.lineItems?.[0]?.sku, order.status].some(value => String(value || '').toLowerCase().includes(query.trim().toLowerCase())));
 
   return <section className="workspace-purchase-orders">
     <div className="section-heading">
@@ -136,10 +139,10 @@ export default function WorkspacePurchaseOrders({ api, requests = [], suppliers 
       <button type="submit" className="primary" disabled={busy || !selectedRequest || !form.expectedDeliveryDate || !form.paymentTerms.trim()}>{busy ? 'Issuing…' : 'Issue purchase order'}</button>
     </form>}
     <section className="table-card">
-      <div className="po-table-heading"><div><h3>Recent purchase orders</h3><p className="muted">PO records remain linked to their original purchase request.</p></div></div>
+      <div className="po-table-heading"><div><h3>Recent purchase orders</h3><p className="muted">PO records remain linked to their original purchase request.</p></div><label className="payment-search"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search PO, supplier, SKU…" aria-label="Search purchase orders"/></label></div>
       <div className="table-scroll vm-interactive-table" role="region" aria-label="Purchase orders table" tabIndex="0">
         <table aria-label="Purchase orders"><thead><tr><th>PO number</th><th>Supplier / item</th><th>Quantity</th><th>Total</th><th>Expected delivery</th><th>Status</th><th>Issued</th><th>Receiving</th><th>Document</th></tr></thead><tbody>
-          {orders.map(order => <tr key={order._id}>
+          {visibleOrders.map(order => <tr key={order._id}>
             <td data-label="PO number"><b>{order.poNumber}</b><small className="table-sub">{String(order.purchaseRequestId || '').slice(-8).toUpperCase()}</small></td>
             <td data-label="Supplier / item"><b>{order.supplierSnapshot?.name || 'Supplier'}</b><small className="table-sub">{order.lineItems?.[0]?.itemName || 'Purchase item'} · {order.lineItems?.[0]?.sku || ''}</small></td>
             <td data-label="Quantity">{Number(order.lineItems?.reduce((sum, line) => sum + Number(line.quantity || 0), 0) || 0).toLocaleString()}<small className="table-sub">Delivered {Number(order.receivedQuantity || 0)} · Accepted {Number(order.acceptedQuantity || 0)} · Damaged {Number(order.damagedQuantity || 0)}</small></td>
@@ -152,7 +155,7 @@ export default function WorkspacePurchaseOrders({ api, requests = [], suppliers 
           </tr>)}
         </tbody></table>
       </div>
-      {orders.length === 0 && <p className="muted po-empty">No purchase orders have been issued in this workspace.</p>}
+      {visibleOrders.length === 0 && <p className="muted po-empty">No purchase orders have been issued in this workspace.</p>}
     </section>
     {printOrder && <article className="vm-po-print-document" aria-label="Purchase order document">
       <header className="vm-po-print-header"><div><span>VENDORMESH PROCUREMENT</span><h1>PURCHASE ORDER</h1><p>{printOrder.buyerSnapshot?.companyName || 'Buyer workspace'}</p></div><div className="vm-po-print-number"><b>{printOrder.poNumber}</b><span>Issued {displayDate(printOrder.issuedAt)}</span><span>Expected {displayDate(printOrder.expectedDeliveryDate)}</span></div></header>
