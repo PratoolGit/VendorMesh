@@ -204,10 +204,9 @@ npm run build
 - The workspace AI copilot uses per-company encrypted credentials and a MongoDB-backed per-company daily request counter; its usage log stores metadata/token counts but not prompts or answers. The legacy `/api/ai/*` routes still use a separate global configuration protected by `ADMIN_API_TOKEN`. Authentication throttling is in-memory per process, so use shared infrastructure before scaling. A production financial deployment still needs a focused security review, payment approval review, monitoring, and validated recovery procedures.
 - Real payment execution is irreversible in some cases. Keep the system in Sandbox until guardrails, approvals, webhook handling and business policy have been independently reviewed.
 
-## Team
+## Owner
 
 - Pratool Kumar Ray
-- Ishan Roy
 
 ## License
 
